@@ -64,7 +64,7 @@ docker compose up -d --build
 如果新增环境变量，记得同步更新 `.env.example` 和部署文档。
 
 ## 6. 开发约定
-
+- 作者名：csc
 - 保持接口返回结构一致，当前风格为 `{ code, message, data }`。
 - 新增受保护接口时，复用 `src/auth.js` 的 JWT 校验方式。
 - 修改数据库结构时，同时更新初始化脚本和对应迁移脚本，不要只改运行时代码。
