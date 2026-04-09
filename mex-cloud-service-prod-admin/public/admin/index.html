@@ -1,415 +1,261 @@
-
 <!doctype html>
 <html lang="zh-CN">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Mex Cloud 管理后台</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <style>
-    body{background:#f8fafc}
-    .card{background:#fff;border:1px solid #e2e8f0;border-radius:14px;box-shadow:0 1px 2px rgba(0,0,0,.04)}
-    .input{width:100%;border:1px solid #cbd5e1;border-radius:10px;padding:.48rem .7rem;background:#fff;font-size:13px}
-    .btn{border-radius:10px;padding:.45rem .82rem;font-size:13px;font-weight:600}
-    .btn-primary{background:#0f172a;color:#fff}
-    .btn-primary:hover{background:#1e293b}
-    .btn-outline{background:#fff;border:1px solid #cbd5e1;color:#0f172a}
-    .btn-danger{background:#dc2626;color:#fff}
-    .btn-read{background:#f8fafc;border:1px solid #cbd5e1;color:#0f172a}
-    .btn-read.done{background:#e5e7eb;color:#6b7280;border-color:#d1d5db}
-    th,td{padding:10px 8px;border-bottom:1px solid #e2e8f0;vertical-align:top;font-size:13px}
-    th{color:#64748b;font-weight:600;background:#f8fafc;text-align:center}
-    td{text-align:center}
-    .toolbar{position:sticky;top:0;z-index:10;background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:10px 12px;box-shadow:0 1px 2px rgba(0,0,0,.04)}
-    .modal-bg{position:fixed;inset:0;background:rgba(15,23,42,.45);display:none;align-items:center;justify-content:center;padding:20px;z-index:50}
-    .modal{width:min(420px,100%);background:#fff;border-radius:16px;padding:18px}
-    .linkified a{color:#2563eb;text-decoration:underline;word-break:break-all}
-    .selected-bar{transition:all .15s ease}
-    .radio-chip{display:inline-flex;align-items:center;gap:6px;border:1px solid #cbd5e1;border-radius:999px;padding:4px 10px;background:#fff;font-size:12px;color:#334155}
-    .radio-chip input{margin:0}
-    .unread-row{background:#eefcf2}
-    .unread-badge{display:inline-flex;align-items:center;justify-content:center;min-width:24px;height:24px;padding:0 8px;border-radius:999px;background:#dc2626;color:#fff;font-size:12px;font-weight:700}
-    .message-cell{white-space:pre-wrap;word-break:break-word;line-height:1.5;text-align:left}
-  </style>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Mex Cloud 管理后台</title>
+<style>
+  :root{--bg:#f8fafc;--card:#fff;--line:#e2e8f0;--text:#0f172a;--muted:#64748b;--primary:#111827;--danger:#dc2626;--soft:#e5e7eb;--unread:#eefcf2}
+  *{box-sizing:border-box;-webkit-touch-callout:none}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--bg);color:var(--text)}
+  .toolbar{position:sticky;top:0;z-index:20;background:#fff;border-bottom:1px solid var(--line);padding:10px}
+  .toolbar-row{display:flex;gap:8px;align-items:center}
+  .toolbar-row + .toolbar-row{margin-top:8px}
+  .input{padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;background:#fff;min-width:0}
+  .input.sender{width:110px;min-width:110px}
+  .input.time{width:calc(50% - 4px)}
+  .btn{padding:8px 12px;border:none;border-radius:8px;font-size:13px;cursor:pointer;white-space:nowrap}
+  .btn.primary{background:var(--primary);color:#fff}
+  .btn.gray{background:var(--soft);color:var(--text)}
+  .btn.danger{background:var(--danger);color:#fff}
+  .btn.outline{background:#fff;border:1px solid #cbd5e1;color:var(--text)}
+  .badge{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:22px;padding:0 7px;border-radius:999px;background:var(--danger);color:#fff;font-size:11px;font-weight:700}
+  .desktop-actions{display:none}
+  .list{padding:6px}
+  .table-wrap{display:none}
+  .card{background:var(--card);margin:6px 0;border-radius:10px;padding:10px;border:1px solid var(--line)}
+  .card.unread{background:var(--unread)}
+  .row{display:flex;justify-content:space-between;gap:8px;font-size:12px;color:var(--muted);margin-bottom:4px}
+  .content{font-size:14px;line-height:1.5;word-break:break-word;white-space:pre-wrap}
+  .content a{color:#2563eb;text-decoration:underline;word-break:break-all}
+  .footer{display:flex;justify-content:space-between;align-items:center;padding:8px 10px;color:var(--muted);font-size:12px;background:#fff;border-top:1px solid var(--line);position:sticky;bottom:0;z-index:10}
+  .footer-right{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+  .modal-mask{position:fixed;inset:0;background:rgba(15,23,42,.45);display:none;align-items:center;justify-content:center;padding:20px;z-index:100;-webkit-touch-callout:none;user-select:none}
+  .modal{width:min(360px,100%);background:#fff;border-radius:14px;padding:18px;box-shadow:0 10px 30px rgba(0,0,0,.18);-webkit-touch-callout:none;user-select:none;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+  .modal *{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+  .modal h3{margin:0 0 6px 0;font-size:18px}
+  .modal p{margin:0 0 12px 0;font-size:13px;color:var(--muted)}
+  .stack{display:flex;flex-direction:column;gap:10px}
+  .tip{font-size:12px;color:var(--danger);min-height:18px}
+  .table{width:100%;border-collapse:collapse;background:#fff}
+  .table th,.table td{border-bottom:1px solid var(--line);padding:10px 8px;font-size:13px;vertical-align:top}
+  .table th{text-align:center;color:var(--muted);font-weight:600;background:#f8fafc}
+  .table td{text-align:center}
+  .message-cell{text-align:left;white-space:pre-wrap;word-break:break-word;line-height:1.5}
+  .table tr.unread{background:var(--unread)}
+  .muted{color:var(--muted)}
+  @media (min-width:768px){
+    .input.sender{width:170px;min-width:170px}
+    .input.time{width:170px}
+    .desktop-actions{display:flex;gap:8px;margin-left:8px}
+    .mobile-list{display:none}
+    .table-wrap{display:block;padding:8px}
+  }
+</style>
 </head>
 <body>
-  <div class="max-w-[1700px] mx-auto p-3 md:p-4 space-y-3">
-    <div class="flex items-center justify-between">
-      <div>
-        <div class="text-xl font-semibold text-slate-900">Mex Cloud 管理后台</div>
-        <div class="text-xs text-slate-500 mt-0.5">登录状态自动保存，token 失效时重新登录。</div>
-      </div>
-      <div class="text-xs text-slate-500">当前用户：<span id="currentUser">-</span></div>
-    </div>
-
-    <div class="toolbar">
-      <div class="grid grid-cols-1 md:grid-cols-[180px_210px_210px_1fr_auto] gap-2 items-end">
-        <div>
-          <div class="text-[11px] text-slate-500 mb-1">发送人</div>
-          <input id="sender" class="input" placeholder="按发送人筛选" />
-        </div>
-        <div>
-          <div class="text-[11px] text-slate-500 mb-1">开始时间</div>
-          <input id="startTime" type="datetime-local" class="input" />
-        </div>
-        <div>
-          <div class="text-[11px] text-slate-500 mb-1">结束时间</div>
-          <input id="endTime" type="datetime-local" class="input" />
-        </div>
-        <div class="flex gap-2 md:justify-start">
-          <button id="queryBtn" class="btn btn-primary">查询</button>
-          <button id="resetBtn" class="btn btn-outline">重置</button>
-        </div>
-        <div id="selectedBar" class="selected-bar flex items-center gap-2 justify-end rounded-xl px-2 py-1.5 text-sm bg-slate-100 text-slate-600">
-          <div class="flex items-center gap-2 mr-2">
-            <span id="unreadBadge" class="unread-badge" style="display:none">0</span>
-            <span id="unreadText" class="text-xs text-slate-600">未读消息 0 条</span>
-          </div>
-          <div class="text-xs">已选择 <span id="selectedCount">0</span> 条</div>
-          <button id="markReadBtn" class="btn btn-outline" disabled>已读</button>
-          <button id="deleteBtn" class="btn btn-danger" disabled>删除</button>
+  <div class="toolbar">
+    <div class="toolbar-row">
+      <input id="sender" class="input sender" placeholder="发送人">
+      <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+        <button id="queryBtn" class="btn primary">查询</button>
+        <button id="resetBtn" class="btn gray">重置</button>
+        <span id="unreadBadge" class="badge">0</span>
+        <div class="desktop-actions">
+          <button id="bulkReadBtn" class="btn outline">设为已读</button>
+          <button id="bulkDeleteBtn" class="btn danger">删除</button>
         </div>
       </div>
     </div>
-
-    <div class="card overflow-hidden">
-      <div class="overflow-x-auto">
-        <table class="w-full">
-          <thead>
-            <tr>
-              <th style="width:42px"><input id="checkAll" type="checkbox" /></th>
-              <th style="width:80px">ID</th>
-              <th style="width:160px">发送人</th>
-              <th style="width:180px">时间</th>
-              <th>消息内容</th>
-              <th style="width:120px">操作</th>
-            </tr>
-          </thead>
-          <tbody id="tbody">
-            <tr><td colspan="6" class="text-center text-slate-500 py-10">暂无数据</td></tr>
-          </tbody>
-        </table>
-      </div>
-      <div class="flex items-center justify-between p-3 text-sm text-slate-500">
-        <div id="pageInfo">第 1 / 1 页，共 0 条</div>
-        <div class="flex items-center gap-3">
-          <div class="flex items-center gap-2">
-            <label class="radio-chip"><input type="radio" name="pageSize" value="10" checked>10条</label>
-            <label class="radio-chip"><input type="radio" name="pageSize" value="20">20条</label>
-            <label class="radio-chip"><input type="radio" name="pageSize" value="50">50条</label>
-          </div>
-          <div class="flex gap-2">
-            <button id="prevBtn" class="btn btn-outline">上一页</button>
-            <button id="nextBtn" class="btn btn-outline">下一页</button>
-          </div>
-        </div>
-      </div>
+    <div class="toolbar-row">
+      <input id="startTime" class="input time" type="datetime-local" placeholder="开始时间">
+      <input id="endTime" class="input time" type="datetime-local" placeholder="结束时间">
     </div>
   </div>
 
-  <div id="loginModalBg" class="modal-bg">
+  <div class="list mobile-list" id="mobileList"></div>
+
+  <div class="table-wrap">
+    <table class="table">
+      <thead>
+        <tr>
+          <th style="width:42px"><input type="checkbox" id="checkAll"></th>
+          <th style="width:70px">ID</th>
+          <th style="width:160px">发送人</th>
+          <th style="width:180px">时间</th>
+          <th>消息内容</th>
+          <th style="width:140px">操作</th>
+        </tr>
+      </thead>
+      <tbody id="desktopTbody">
+        <tr><td colspan="6" class="muted">暂无数据</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="footer">
+    <div id="pageInfo">第 1 / 1 页，共 0 条</div>
+    <div class="footer-right">
+      <label><input type="radio" name="pageSize" value="10" checked>10</label>
+      <label><input type="radio" name="pageSize" value="20">20</label>
+      <label><input type="radio" name="pageSize" value="50">50</label>
+      <button id="prevBtn" class="btn gray">上一页</button>
+      <button id="nextBtn" class="btn gray">下一页</button>
+    </div>
+  </div>
+
+  <div id="loginMask" class="modal-mask">
     <div class="modal">
-      <div class="text-lg font-semibold mb-1">登录</div>
-      <div class="text-sm text-slate-500 mb-4">token 不存在或已失效，请重新登录。</div>
-      <div class="space-y-3">
-        <div>
-          <div class="text-xs text-slate-500 mb-1">用户名</div>
-          <input id="loginUsername" class="input" value="admin" />
-        </div>
-        <div>
-          <div class="text-xs text-slate-500 mb-1">密码</div>
-          <input id="loginPassword" type="password" class="input" value="123456" />
-        </div>
-        <button id="loginBtn" class="btn btn-primary w-full">登录并保存 token</button>
+      <h3>请重新登录</h3>
+      <p>当前登录状态已失效，请重新输入账号密码。</p>
+      <div class="stack">
+        <input id="loginUsername" class="input" value="admin" placeholder="用户名">
+        <input id="loginPassword" class="input" type="password" value="123456" placeholder="密码">
+        <button id="loginBtn" class="btn primary">登录</button>
+        <div id="loginTip" class="tip"></div>
       </div>
-      <div id="loginMsg" class="text-sm text-rose-600 mt-3"></div>
     </div>
   </div>
 
-  <script>
-    const LS_TOKEN = 'mex_admin_token';
-    const LS_USER = 'mex_admin_user';
-    const state = {
-      token: localStorage.getItem(LS_TOKEN) || '',
-      username: localStorage.getItem(LS_USER) || 'admin',
-      list: [],
-      page: 1,
-      totalPages: 1,
-      total: 0,
-      selected: new Set(),
-      unreadTotal: 0
-    };
+  <div id="mobileActionMask" class="modal-mask">
+    <div class="modal" id="mobileActionModal">
+      <h3>消息操作</h3>
+      <p>请选择要执行的操作。</p>
+      <div class="stack">
+        <button id="mobileReadBtn" class="btn primary">设为已读</button>
+        <button id="mobileDeleteBtn" class="btn danger">删除</button>
+        <button id="mobileCancelBtn" class="btn gray">取消</button>
+      </div>
+    </div>
+  </div>
 
-    const els = {
-      sender: document.getElementById('sender'),
-      startTime: document.getElementById('startTime'),
-      endTime: document.getElementById('endTime'),
-      queryBtn: document.getElementById('queryBtn'),
-      resetBtn: document.getElementById('resetBtn'),
-      tbody: document.getElementById('tbody'),
-      pageInfo: document.getElementById('pageInfo'),
-      prevBtn: document.getElementById('prevBtn'),
-      nextBtn: document.getElementById('nextBtn'),
-      selectedCount: document.getElementById('selectedCount'),
-      selectedBar: document.getElementById('selectedBar'),
-      unreadBadge: document.getElementById('unreadBadge'),
-      unreadText: document.getElementById('unreadText'),
-      markReadBtn: document.getElementById('markReadBtn'),
-      deleteBtn: document.getElementById('deleteBtn'),
-      checkAll: document.getElementById('checkAll'),
-      currentUser: document.getElementById('currentUser'),
-      loginModalBg: document.getElementById('loginModalBg'),
-      loginUsername: document.getElementById('loginUsername'),
-      loginPassword: document.getElementById('loginPassword'),
-      loginBtn: document.getElementById('loginBtn'),
-      loginMsg: document.getElementById('loginMsg')
-    };
+<script>
+const LS_TOKEN='mex_admin_token';
+const LS_USER='mex_admin_user';
+const state={token:localStorage.getItem(LS_TOKEN)||'',username:localStorage.getItem(LS_USER)||'admin',page:1,totalPages:1,total:0,unreadTotal:0,loadingLogin:false,longPressTimer:null,actionId:null,list:[],selected:new Set()};
+const els={
+  sender:document.getElementById('sender'),
+  startTime:document.getElementById('startTime'),
+  endTime:document.getElementById('endTime'),
+  queryBtn:document.getElementById('queryBtn'),
+  resetBtn:document.getElementById('resetBtn'),
+  unreadBadge:document.getElementById('unreadBadge'),
+  mobileList:document.getElementById('mobileList'),
+  desktopTbody:document.getElementById('desktopTbody'),
+  checkAll:document.getElementById('checkAll'),
+  bulkReadBtn:document.getElementById('bulkReadBtn'),
+  bulkDeleteBtn:document.getElementById('bulkDeleteBtn'),
+  pageInfo:document.getElementById('pageInfo'),
+  prevBtn:document.getElementById('prevBtn'),
+  nextBtn:document.getElementById('nextBtn'),
+  loginMask:document.getElementById('loginMask'),
+  loginUsername:document.getElementById('loginUsername'),
+  loginPassword:document.getElementById('loginPassword'),
+  loginBtn:document.getElementById('loginBtn'),
+  loginTip:document.getElementById('loginTip'),
+  mobileActionMask:document.getElementById('mobileActionMask'),
+  mobileActionModal:document.getElementById('mobileActionModal'),
+  mobileReadBtn:document.getElementById('mobileReadBtn'),
+  mobileDeleteBtn:document.getElementById('mobileDeleteBtn'),
+  mobileCancelBtn:document.getElementById('mobileCancelBtn')
+};
+function isDesktop(){return window.matchMedia('(min-width:768px)').matches;}
+function currentPageSize(){const checked=document.querySelector('input[name="pageSize"]:checked');return checked?Number(checked.value):10;}
+function escapeHtml(s=''){return String(s).replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));}
+function linkify(text=''){return escapeHtml(text).replace(/(https?:\/\/[^\s]+)/g,'<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>');}
+function formatDate(v){const d=new Date(v);if(Number.isNaN(d.getTime())) return String(v||'-');const p=n=>String(n).padStart(2,'0');return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;}
+function normalizeTimeInputs(){[els.startTime,els.endTime].forEach(el=>{el.step=3600;});}
+function haptic(){try{if(navigator.vibrate) navigator.vibrate(18);}catch(e){}}
+function openLogin(message=''){els.loginUsername.value=state.username||'admin';els.loginPassword.value='123456';els.loginTip.textContent=message;els.loginMask.style.display='flex';}
+function closeLogin(){els.loginTip.textContent='';els.loginMask.style.display='none';}
+function openMobileAction(id){state.actionId=id;haptic();els.mobileActionMask.style.display='flex';}
+function closeMobileAction(){els.mobileActionMask.style.display='none';state.actionId=null;}
+function clearToken(){state.token='';localStorage.removeItem(LS_TOKEN);}
+async function apiFetch(url,options={}){
+  const headers=Object.assign({},options.headers||{});
+  if(state.token) headers.Authorization=`Bearer ${state.token}`;
+  const resp=await fetch(url,Object.assign({},options,{headers}));
+  const data=await resp.json().catch(()=>({code:resp.status,message:'invalid response'}));
+  const tokenError=resp.status===401||data.code===401||/token/i.test(String(data.message||''))||data.message==='no token'||data.message==='invalid token';
+  if(tokenError){clearToken();openLogin('登录已失效，请重新登录');throw new Error('TOKEN_EXPIRED');}
+  return data;
+}
+async function doLogin(){
+  if(state.loadingLogin) return;
+  state.loadingLogin=true;els.loginTip.textContent='';
+  try{
+    const resp=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:els.loginUsername.value.trim(),password:els.loginPassword.value})});
+    const data=await resp.json();
+    if(data.code===0&&data.data&&data.data.token){
+      state.token=data.data.token;state.username=els.loginUsername.value.trim()||'admin';
+      localStorage.setItem(LS_TOKEN,state.token);localStorage.setItem(LS_USER,state.username);
+      closeLogin();await loadMessages();
+    }else{els.loginTip.textContent=data.message||'登录失败';}
+  }catch(e){els.loginTip.textContent='登录失败，请稍后重试';}
+  finally{state.loadingLogin=false;}
+}
+function swallowLongPressOnModal(node){
+  ['touchstart','touchend','touchcancel','contextmenu'].forEach(type=>{
+    node.addEventListener(type,e=>{e.stopPropagation();if(type==='contextmenu')e.preventDefault();},{passive:false});
+  });
+}
+function bindLongPress(node,id,isRead){
+  if(isDesktop()||isRead) return;
+  const start=e=>{e.stopPropagation();state.longPressTimer=setTimeout(()=>openMobileAction(id),550);};
+  const cancel=e=>{if(e)e.stopPropagation();if(state.longPressTimer)clearTimeout(state.longPressTimer);state.longPressTimer=null;};
+  node.addEventListener('touchstart',start,{passive:true});
+  node.addEventListener('touchend',cancel,{passive:true});
+  node.addEventListener('touchcancel',cancel,{passive:true});
+}
+function normalize(item){
+  const contentJson=item.contentJson||{};
+  return {id:item.id,sender:item.sender||contentJson.sender||contentJson.from||'-',createdAt:formatDate(item.createdAt),content:contentJson.content??contentJson.message??JSON.stringify(contentJson,null,2),isRead:!!item.isRead};
+}
+function updateDesktopActionState(){const disabled=state.selected.size===0;els.bulkReadBtn.disabled=disabled;els.bulkDeleteBtn.disabled=disabled;}
+function renderMobile(){
+  if(!state.list.length){els.mobileList.innerHTML='<div class="card">暂无数据</div>';return;}
+  els.mobileList.innerHTML=state.list.map(item=>`<div class="card ${item.isRead?'':'unread'}" data-id="${item.id}" data-read="${item.isRead?'1':'0'}"><div class="row"><span>${escapeHtml(item.sender)}</span><span>${escapeHtml(item.createdAt)}</span></div><div class="content">${linkify(item.content)}</div></div>`).join('');
+  document.querySelectorAll('#mobileList .card').forEach(card=>bindLongPress(card,Number(card.dataset.id),card.dataset.read==='1'));
+}
+function syncCheckAll(){if(!state.list.length){els.checkAll.checked=false;return;}els.checkAll.checked=state.list.every(item=>state.selected.has(item.id));}
+function renderDesktop(){
+  if(!state.list.length){els.desktopTbody.innerHTML='<tr><td colspan="6" class="muted">暂无数据</td></tr>';updateDesktopActionState();return;}
+  els.desktopTbody.innerHTML=state.list.map(item=>`<tr class="${item.isRead?'':'unread'}"><td><input type="checkbox" class="row-check" data-id="${item.id}" ${state.selected.has(item.id)?'checked':''}></td><td>${item.id}</td><td>${escapeHtml(item.sender)}</td><td>${escapeHtml(item.createdAt)}</td><td class="message-cell">${linkify(item.content)}</td><td>${item.isRead?'<button class="btn gray" disabled>已读</button>':`<button class="btn outline one-read-btn" data-id="${item.id}">设为已读</button>`}</td></tr>`).join('');
+  document.querySelectorAll('.row-check').forEach(el=>el.addEventListener('change',e=>{const id=Number(e.target.dataset.id);if(e.target.checked)state.selected.add(id);else state.selected.delete(id);syncCheckAll();updateDesktopActionState();}));
+  document.querySelectorAll('.one-read-btn').forEach(el=>el.addEventListener('click',()=>markReadByIds([Number(el.dataset.id)]).catch(()=>{})));
+  syncCheckAll();updateDesktopActionState();
+}
+function render(){els.unreadBadge.textContent=String(state.unreadTotal||0);els.pageInfo.textContent=`第 ${state.page} / ${state.totalPages} 页，共 ${state.total} 条`;renderMobile();renderDesktop();}
+async function loadMessages(){
+  const params=new URLSearchParams();params.set('page',String(state.page));params.set('pageSize',String(currentPageSize()));
+  if(els.sender.value.trim()) params.set('sender',els.sender.value.trim());
+  if(els.startTime.value) params.set('startTime',els.startTime.value.replace('T',' '));
+  if(els.endTime.value) params.set('endTime',els.endTime.value.replace('T',' '));
+  const data=await apiFetch('/api/messages?'+params.toString());
+  state.total=Number(data.data?.pagination?.total||0);state.page=Number(data.data?.pagination?.page||1);state.totalPages=Number(data.data?.pagination?.totalPages||1);state.unreadTotal=Number(data.data?.unreadTotal||0);state.list=(data.data?.list||[]).map(normalize);state.selected.clear();render();
+}
+async function markReadByIds(ids){if(!ids.length) return;const data=await apiFetch('/api/messages/read',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ids})});if(data.code===0){await loadMessages();closeMobileAction();}}
+async function deleteByIds(ids){if(!ids.length) return;const data=await apiFetch('/api/messages',{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({ids})});if(data.code===0){await loadMessages();closeMobileAction();}}
 
-    function currentPageSize() {
-      const checked = document.querySelector('input[name="pageSize"]:checked');
-      return checked ? parseInt(checked.value, 10) : 10;
-    }
+els.queryBtn.addEventListener('click',()=>{state.page=1;loadMessages().catch(()=>{});});
+els.resetBtn.addEventListener('click',()=>{els.sender.value='';els.startTime.value='';els.endTime.value='';state.page=1;document.querySelector('input[name="pageSize"][value="10"]').checked=true;loadMessages().catch(()=>{});});
+els.prevBtn.addEventListener('click',()=>{if(state.page>1){state.page-=1;loadMessages().catch(()=>{});}});
+els.nextBtn.addEventListener('click',()=>{if(state.page<state.totalPages){state.page+=1;loadMessages().catch(()=>{});}});
+document.querySelectorAll('input[name="pageSize"]').forEach(el=>el.addEventListener('change',()=>{state.page=1;loadMessages().catch(()=>{});}));
+els.loginBtn.addEventListener('click',doLogin);
+els.mobileReadBtn.addEventListener('click',()=>markReadByIds([state.actionId]).catch(()=>{}));
+els.mobileDeleteBtn.addEventListener('click',()=>deleteByIds([state.actionId]).catch(()=>{}));
+els.mobileCancelBtn.addEventListener('click',closeMobileAction);
+els.mobileActionMask.addEventListener('click',e=>{if(e.target===els.mobileActionMask)closeMobileAction();});
+els.checkAll.addEventListener('change',e=>{if(e.target.checked)state.list.forEach(item=>state.selected.add(item.id));else state.selected.clear();renderDesktop();});
+els.bulkReadBtn.addEventListener('click',()=>markReadByIds(Array.from(state.selected)).catch(()=>{}));
+els.bulkDeleteBtn.addEventListener('click',()=>deleteByIds(Array.from(state.selected)).catch(()=>{}));
+window.addEventListener('resize',()=>render());
+swallowLongPressOnModal(els.mobileActionModal);
+normalizeTimeInputs();
 
-    function showLogin(msg=''){ els.loginModalBg.style.display='flex'; els.loginMsg.textContent=msg; els.loginUsername.value = state.username || 'admin'; els.loginPassword.value = '123456'; }
-    function hideLogin(){ els.loginModalBg.style.display='none'; els.loginMsg.textContent=''; }
-
-    function formatDate(v) {
-      const d = new Date(v);
-      if (Number.isNaN(d.getTime())) return String(v || '-');
-      const pad = n => String(n).padStart(2, '0');
-      return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-    }
-
-    function linkify(text) {
-      const s = String(text || '');
-      const escaped = s.replace(/[&<>"]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
-      return escaped.replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>');
-    }
-
-    async function apiFetch(url, options={}) {
-      const resp = await fetch(url, options);
-      const data = await resp.json();
-      if (resp.status === 401 || data.code === 401) {
-        localStorage.removeItem(LS_TOKEN);
-        state.token = '';
-        showLogin('token 已失效，请重新登录');
-        throw new Error('unauthorized');
-      }
-      return data;
-    }
-
-    function updateSelectedBar() {
-      const count = state.selected.size;
-      els.selectedCount.textContent = String(count);
-      els.unreadText.textContent = `未读消息 ${state.unreadTotal} 条`;
-      els.unreadBadge.textContent = String(state.unreadTotal);
-      els.unreadBadge.style.display = state.unreadTotal > 0 ? 'inline-flex' : 'none';
-      const active = count > 0;
-      els.selectedBar.className = 'selected-bar flex items-center gap-2 justify-end rounded-xl px-2 py-1.5 text-sm ' + (active ? 'bg-amber-100 text-amber-800 ring-1 ring-amber-200' : 'bg-slate-100 text-slate-600');
-      els.markReadBtn.disabled = !active;
-      els.deleteBtn.disabled = !active;
-    }
-
-    function normalize(item) {
-      const contentJson = item.contentJson || {};
-      const content = contentJson.content ?? contentJson.message ?? JSON.stringify(contentJson, null, 2);
-      return {
-        id: item.id,
-        sender: item.sender || contentJson.sender || contentJson.from || '',
-        createdAt: formatDate(item.createdAt),
-        content,
-        isRead: !!item.isRead
-      };
-    }
-
-    function syncCheckAll() {
-      if (!state.list.length) { els.checkAll.checked = false; return; }
-      els.checkAll.checked = state.list.every(item => state.selected.has(item.id));
-    }
-
-    function render() {
-      if (!state.list.length) {
-        els.tbody.innerHTML = '<tr><td colspan="6" class="text-center text-slate-500 py-10">暂无数据</td></tr>';
-      } else {
-        els.tbody.innerHTML = state.list.map(item => {
-          const checked = state.selected.has(item.id) ? 'checked' : '';
-          const rowClass = item.isRead ? 'bg-white text-slate-500' : 'unread-row text-slate-900';
-          const btnClass = item.isRead ? 'btn btn-read done' : 'btn btn-read';
-          const btnText = item.isRead ? '已读' : '设为已读';
-          return `
-            <tr class="${rowClass}">
-              <td><input type="checkbox" class="rowCheck" data-id="${item.id}" ${checked} /></td>
-              <td>${item.id}</td>
-              <td>${item.sender || '-'}</td>
-              <td>${item.createdAt || '-'}</td>
-              <td class="message-cell linkified">${linkify(item.content)}</td>
-              <td><button class="${btnClass} oneReadBtn" data-id="${item.id}" ${item.isRead ? 'disabled' : ''}>${btnText}</button></td>
-            </tr>
-          `;
-        }).join('');
-        document.querySelectorAll('.rowCheck').forEach(el => {
-          el.addEventListener('change', e => {
-            const id = parseInt(e.target.dataset.id, 10);
-            if (e.target.checked) state.selected.add(id); else state.selected.delete(id);
-            updateSelectedBar();
-            syncCheckAll();
-          });
-        });
-        document.querySelectorAll('.oneReadBtn').forEach(el => {
-          el.addEventListener('click', async e => {
-            const id = parseInt(e.target.dataset.id, 10);
-            await markReadByIds([id]);
-          });
-        });
-      }
-      els.pageInfo.textContent = `第 ${state.page} / ${state.totalPages} 页，共 ${state.total} 条`;
-      updateSelectedBar();
-      syncCheckAll();
-    }
-
-    async function login() {
-      try {
-        const data = await apiFetch('/api/auth/login', {
-          method:'POST',
-          headers:{ 'Content-Type':'application/json' },
-          body: JSON.stringify({
-            username: els.loginUsername.value,
-            password: els.loginPassword.value
-          })
-        });
-        if (data.code === 0 && data.data && data.data.token) {
-          state.token = data.data.token;
-          state.username = els.loginUsername.value;
-          localStorage.setItem(LS_TOKEN, state.token);
-          localStorage.setItem(LS_USER, state.username);
-          els.currentUser.textContent = state.username;
-          hideLogin();
-          await queryMessages();
-        } else {
-          els.loginMsg.textContent = data.message || '登录失败';
-        }
-      } catch (e) {
-        if (String(e.message) !== 'unauthorized') els.loginMsg.textContent = String(e.message);
-      }
-    }
-
-    async function queryMessages() {
-      const params = new URLSearchParams();
-      params.set('page', String(state.page));
-      params.set('pageSize', String(currentPageSize()));
-      if (els.sender.value.trim()) params.set('sender', els.sender.value.trim());
-      if (els.startTime.value) params.set('startTime', els.startTime.value.replace('T', ' '));
-      if (els.endTime.value) params.set('endTime', els.endTime.value.replace('T', ' '));
-
-      const data = await apiFetch('/api/messages?' + params.toString(), {
-        headers: { Authorization: 'Bearer ' + state.token }
-      });
-
-      if (data.code === 0) {
-        state.list = (data.data.list || []).map(normalize);
-        state.page = data.data.pagination.page;
-        state.totalPages = data.data.pagination.totalPages;
-        state.total = data.data.pagination.total;
-        state.unreadTotal = Number(data.data.unreadTotal || 0);
-        state.selected.clear();
-        render();
-      }
-    }
-
-    async function checkNewMessages() {
-      if (!state.token) return;
-      try {
-        const params = new URLSearchParams();
-        params.set('page', String(state.page));
-        params.set('pageSize', String(currentPageSize()));
-        if (els.sender.value.trim()) params.set('sender', els.sender.value.trim());
-        if (els.startTime.value) params.set('startTime', els.startTime.value.replace('T', ' '));
-        if (els.endTime.value) params.set('endTime', els.endTime.value.replace('T', ' '));
-
-        const data = await apiFetch('/api/messages?' + params.toString(), {
-          headers: { Authorization: 'Bearer ' + state.token }
-        });
-        if (data.code === 0) {
-          state.list = (data.data.list || []).map(normalize);
-          state.page = data.data.pagination.page;
-          state.totalPages = data.data.pagination.totalPages;
-          state.total = data.data.pagination.total;
-          state.unreadTotal = Number(data.data.unreadTotal || 0);
-          render();
-        }
-      } catch (e) {}
-    }
-
-    async function markReadByIds(ids) {
-      if (!ids.length) return;
-      const data = await apiFetch('/api/messages/read', {
-        method:'POST',
-        headers: { 'Content-Type':'application/json', Authorization: 'Bearer ' + state.token },
-        body: JSON.stringify({ ids })
-      });
-      if (data.code === 0) {
-        state.list = state.list.map(item => ids.includes(item.id) ? { ...item, isRead: true } : item);
-        state.unreadTotal = Math.max(0, state.unreadTotal - ids.length);
-        ids.forEach(id => state.selected.delete(id));
-        render();
-      }
-    }
-
-    async function markRead() {
-      await markReadByIds(Array.from(state.selected));
-    }
-
-    async function deleteMessages() {
-      const ids = Array.from(state.selected);
-      if (!ids.length) return;
-      if (!confirm(`确定删除已选择的 ${ids.length} 条消息吗？`)) return;
-      const unreadDeleting = state.list.filter(item => ids.includes(item.id) && !item.isRead).length;
-      const data = await apiFetch('/api/messages', {
-        method:'DELETE',
-        headers: { 'Content-Type':'application/json', Authorization: 'Bearer ' + state.token },
-        body: JSON.stringify({ ids })
-      });
-      if (data.code === 0) {
-        state.list = state.list.filter(item => !ids.includes(item.id));
-        state.unreadTotal = Math.max(0, state.unreadTotal - unreadDeleting);
-        state.selected.clear();
-        render();
-      }
-    }
-
-    els.queryBtn.addEventListener('click', () => { state.page = 1; queryMessages(); });
-    els.resetBtn.addEventListener('click', () => {
-      els.sender.value = '';
-      els.startTime.value = '';
-      els.endTime.value = '';
-      state.page = 1;
-      document.querySelector('input[name="pageSize"][value="10"]').checked = true;
-      queryMessages();
-    });
-    els.prevBtn.addEventListener('click', () => {
-      if (state.page > 1) { state.page -= 1; queryMessages(); }
-    });
-    els.nextBtn.addEventListener('click', () => {
-      if (state.page < state.totalPages) { state.page += 1; queryMessages(); }
-    });
-    document.querySelectorAll('input[name="pageSize"]').forEach(el => {
-      el.addEventListener('change', () => { state.page = 1; queryMessages(); });
-    });
-    els.checkAll.addEventListener('change', e => {
-      if (e.target.checked) state.list.forEach(item => state.selected.add(item.id));
-      else state.list.forEach(item => state.selected.delete(item.id));
-      updateSelectedBar();
-      render();
-    });
-    els.markReadBtn.addEventListener('click', markRead);
-    els.deleteBtn.addEventListener('click', deleteMessages);
-    els.loginBtn.addEventListener('click', login);
-
-    els.currentUser.textContent = state.username || '-';
-    if (state.token) queryMessages().then(() => {
-      setInterval(checkNewMessages, 60000);
-    }).catch(() => showLogin('token 已失效，请重新登录'));
-    else showLogin();
-  </script>
+if(state.token) loadMessages().catch(()=>{});
+else openLogin();
+</script>
 </body>
 </html>
