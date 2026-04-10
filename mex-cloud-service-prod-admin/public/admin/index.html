@@ -4,8 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Mex Cloud 管理后台</title>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📨</text></svg>">
-
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📨</text></svg>">
 <style>
   :root{--bg:#f8fafc;--card:#fff;--line:#e2e8f0;--text:#0f172a;--muted:#64748b;--primary:#111827;--danger:#dc2626;--soft:#e5e7eb;--unread:#eefcf2}
   *{box-sizing:border-box;-webkit-touch-callout:none}
@@ -227,7 +226,18 @@ function renderDesktop(){
   document.querySelectorAll('.one-read-btn').forEach(el=>el.addEventListener('click',()=>markReadByIds([Number(el.dataset.id)]).catch(()=>{})));
   syncCheckAll();updateDesktopActionState();
 }
-function render(){els.unreadBadge.textContent=String(state.unreadTotal||0);els.pageInfo.textContent=`第 ${state.page} / ${state.totalPages} 页，共 ${state.total} 条`;renderMobile();renderDesktop();}
+
+// ===== 动态标题未读数 =====
+function updateTitle() {
+  const base = "Mex Cloud 管理后台";
+  if (state.unreadTotal > 0) {
+    document.title = `(${state.unreadTotal}) ` + base;
+  } else {
+    document.title = base;
+  }
+}
+
+function render(){els.unreadBadge.textContent=String(state.unreadTotal||0);els.pageInfo.textContent=`第 ${state.page} / ${state.totalPages} 页，共 ${state.total} 条`;renderMobile();renderDesktop();updateTitle();}
 async function loadMessages(){
   const params=new URLSearchParams();params.set('page',String(state.page));params.set('pageSize',String(currentPageSize()));
   if(els.sender.value.trim()) params.set('sender',els.sender.value.trim());
