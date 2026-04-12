@@ -13,14 +13,17 @@
   .toolbar-row{display:flex;gap:8px;align-items:center}
   .toolbar-row + .toolbar-row{margin-top:8px}
   .input{padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;background:#fff;min-width:0}
-  .input.sender{width:110px;min-width:110px}
+  .input.sender{width:92px;min-width:92px}
   .input.time{width:calc(50% - 4px)}
   .btn{padding:8px 12px;border:none;border-radius:8px;font-size:13px;cursor:pointer;white-space:nowrap}
+  .btn.compact{padding:8px 10px}
   .btn.primary{background:var(--primary);color:#fff}
   .btn.gray{background:var(--soft);color:var(--text)}
   .btn.danger{background:var(--danger);color:#fff}
   .btn.outline{background:#fff;border:1px solid #cbd5e1;color:var(--text)}
   .badge{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:22px;padding:0 7px;border-radius:999px;background:var(--danger);color:#fff;font-size:11px;font-weight:700}
+  .toolbar-actions{margin-left:auto;display:flex;gap:6px;align-items:center;min-width:0;overflow-x:auto;scrollbar-width:none}
+  .toolbar-actions::-webkit-scrollbar{display:none}
   .desktop-actions{display:none}
   .list{padding:6px}
   .table-wrap{display:none}
@@ -37,6 +40,7 @@
   .modal h3{margin:0 0 6px 0;font-size:18px}
   .modal p{margin:0 0 12px 0;font-size:13px;color:var(--muted)}
   .stack{display:flex;flex-direction:column;gap:10px}
+  .modal-actions{display:flex;justify-content:flex-end;gap:10px}
   .tip{font-size:12px;color:var(--danger);min-height:18px}
   .table{width:100%;border-collapse:collapse;background:#fff}
   .table th,.table td{border-bottom:1px solid var(--line);padding:10px 8px;font-size:13px;vertical-align:top}
@@ -48,6 +52,7 @@
   @media (min-width:768px){
     .input.sender{width:170px;min-width:170px}
     .input.time{width:170px}
+    .toolbar-actions{gap:8px;overflow:visible}
     .desktop-actions{display:flex;gap:8px;margin-left:8px}
     .mobile-list{display:none}
     .table-wrap{display:block;padding:8px}
@@ -58,13 +63,15 @@
   <div class="toolbar">
     <div class="toolbar-row">
       <input id="sender" class="input sender" placeholder="发送人">
-      <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
-        <button id="queryBtn" class="btn primary">查询</button>
-        <button id="resetBtn" class="btn gray">重置</button>
+      <div class="toolbar-actions">
+        <button id="queryBtn" class="btn primary compact">查询</button>
+        <button id="resetBtn" class="btn gray compact">重置</button>
         <span id="unreadBadge" class="badge">0</span>
+        <button id="readAllBtn" class="btn outline compact">一键已读</button>
+        <button id="clearAllBtn" class="btn danger compact">清空</button>
         <div class="desktop-actions">
-          <button id="bulkReadBtn" class="btn outline">设为已读</button>
-          <button id="bulkDeleteBtn" class="btn danger">删除</button>
+          <button id="bulkReadBtn" class="btn outline">选中已读</button>
+          <button id="bulkDeleteBtn" class="btn danger">选中删除</button>
         </div>
       </div>
     </div>
@@ -130,10 +137,22 @@
     </div>
   </div>
 
+  <div id="confirmMask" class="modal-mask">
+    <div class="modal" id="confirmModal">
+      <h3 id="confirmTitle">确认操作</h3>
+      <p id="confirmText">请确认是否继续。</p>
+      <div class="modal-actions">
+        <button id="confirmCancelBtn" class="btn gray">取消</button>
+        <button id="confirmOkBtn" class="btn primary">确认</button>
+      </div>
+      <div id="confirmTip" class="tip"></div>
+    </div>
+  </div>
+
 <script>
 const LS_TOKEN='mex_admin_token';
 const LS_USER='mex_admin_user';
-const state={token:localStorage.getItem(LS_TOKEN)||'',username:localStorage.getItem(LS_USER)||'admin',page:1,totalPages:1,total:0,unreadTotal:0,loadingLogin:false,longPressTimer:null,actionId:null,list:[],selected:new Set()};
+const state={token:localStorage.getItem(LS_TOKEN)||'',username:localStorage.getItem(LS_USER)||'admin',page:1,totalPages:1,total:0,unreadTotal:0,loadingLogin:false,confirming:false,confirmAction:null,longPressTimer:null,actionId:null,list:[],selected:new Set()};
 const els={
   sender:document.getElementById('sender'),
   startTime:document.getElementById('startTime'),
@@ -141,6 +160,8 @@ const els={
   queryBtn:document.getElementById('queryBtn'),
   resetBtn:document.getElementById('resetBtn'),
   unreadBadge:document.getElementById('unreadBadge'),
+  readAllBtn:document.getElementById('readAllBtn'),
+  clearAllBtn:document.getElementById('clearAllBtn'),
   mobileList:document.getElementById('mobileList'),
   desktopTbody:document.getElementById('desktopTbody'),
   checkAll:document.getElementById('checkAll'),
@@ -158,7 +179,14 @@ const els={
   mobileActionModal:document.getElementById('mobileActionModal'),
   mobileReadBtn:document.getElementById('mobileReadBtn'),
   mobileDeleteBtn:document.getElementById('mobileDeleteBtn'),
-  mobileCancelBtn:document.getElementById('mobileCancelBtn')
+  mobileCancelBtn:document.getElementById('mobileCancelBtn'),
+  confirmMask:document.getElementById('confirmMask'),
+  confirmModal:document.getElementById('confirmModal'),
+  confirmTitle:document.getElementById('confirmTitle'),
+  confirmText:document.getElementById('confirmText'),
+  confirmCancelBtn:document.getElementById('confirmCancelBtn'),
+  confirmOkBtn:document.getElementById('confirmOkBtn'),
+  confirmTip:document.getElementById('confirmTip')
 };
 function isDesktop(){return window.matchMedia('(min-width:768px)').matches;}
 function currentPageSize(){const checked=document.querySelector('input[name="pageSize"]:checked');return checked?Number(checked.value):10;}
@@ -171,6 +199,40 @@ function openLogin(message=''){els.loginUsername.value=state.username||'admin';e
 function closeLogin(){els.loginTip.textContent='';els.loginMask.style.display='none';}
 function openMobileAction(id){state.actionId=id;haptic();els.mobileActionMask.style.display='flex';}
 function closeMobileAction(){els.mobileActionMask.style.display='none';state.actionId=null;}
+function openConfirm(options){
+  state.confirmAction=options.onConfirm;
+  els.confirmTitle.textContent=options.title;
+  els.confirmText.textContent=options.text;
+  els.confirmOkBtn.textContent=options.okText||'确认';
+  els.confirmOkBtn.className=`btn ${options.okClass||'primary'}`;
+  els.confirmTip.textContent='';
+  els.confirmMask.style.display='flex';
+}
+function closeConfirm(){
+  if(state.confirming) return;
+  state.confirmAction=null;
+  els.confirmTip.textContent='';
+  els.confirmMask.style.display='none';
+}
+async function runConfirm(){
+  if(state.confirming||!state.confirmAction) return;
+  state.confirming=true;
+  els.confirmOkBtn.disabled=true;
+  const oldText=els.confirmOkBtn.textContent;
+  els.confirmOkBtn.textContent='处理中...';
+  try{
+    await state.confirmAction();
+    state.confirming=false;
+    els.confirmOkBtn.disabled=false;
+    els.confirmOkBtn.textContent=oldText;
+    closeConfirm();
+  }catch(e){
+    state.confirming=false;
+    els.confirmOkBtn.disabled=false;
+    els.confirmOkBtn.textContent=oldText;
+    if(e.message!=='TOKEN_EXPIRED') els.confirmTip.textContent='操作失败，请稍后重试';
+  }
+}
 function clearToken(){state.token='';localStorage.removeItem(LS_TOKEN);}
 async function apiFetch(url,options={}){
   const headers=Object.assign({},options.headers||{});
@@ -178,7 +240,7 @@ async function apiFetch(url,options={}){
   const resp=await fetch(url,Object.assign({},options,{headers}));
   const data=await resp.json().catch(()=>({code:resp.status,message:'invalid response'}));
   const tokenError=resp.status===401||data.code===401||/token/i.test(String(data.message||''))||data.message==='no token'||data.message==='invalid token';
-  if(tokenError){clearToken();openLogin('登录已失效，请重新登录');throw new Error('TOKEN_EXPIRED');}
+  if(tokenError){state.confirming=false;els.confirmOkBtn.disabled=false;closeConfirm();closeMobileAction();clearToken();openLogin('登录已失效，请重新登录');throw new Error('TOKEN_EXPIRED');}
   return data;
 }
 async function doLogin(){
@@ -248,9 +310,13 @@ async function loadMessages(){
 }
 async function markReadByIds(ids){if(!ids.length) return;const data=await apiFetch('/api/messages/read',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ids})});if(data.code===0){await loadMessages();closeMobileAction();}}
 async function deleteByIds(ids){if(!ids.length) return;const data=await apiFetch('/api/messages',{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({ids})});if(data.code===0){await loadMessages();closeMobileAction();}}
+async function markAllRead(){const data=await apiFetch('/api/messages/read-all',{method:'POST'});if(data.code===0){await loadMessages();}}
+async function clearAllMessages(){const data=await apiFetch('/api/messages/clear',{method:'DELETE'});if(data.code===0){state.page=1;await loadMessages();}}
 
 els.queryBtn.addEventListener('click',()=>{state.page=1;loadMessages().catch(()=>{});});
 els.resetBtn.addEventListener('click',()=>{els.sender.value='';els.startTime.value='';els.endTime.value='';state.page=1;document.querySelector('input[name="pageSize"][value="10"]').checked=true;loadMessages().catch(()=>{});});
+els.readAllBtn.addEventListener('click',()=>openConfirm({title:'一键已读',text:'确定将全部未读消息标记为已读吗？',okText:'确认已读',okClass:'primary',onConfirm:markAllRead}));
+els.clearAllBtn.addEventListener('click',()=>openConfirm({title:'清空消息',text:'确定清空全部消息吗？此操作不可恢复。',okText:'确认清空',okClass:'danger',onConfirm:clearAllMessages}));
 els.prevBtn.addEventListener('click',()=>{if(state.page>1){state.page-=1;loadMessages().catch(()=>{});}});
 els.nextBtn.addEventListener('click',()=>{if(state.page<state.totalPages){state.page+=1;loadMessages().catch(()=>{});}});
 document.querySelectorAll('input[name="pageSize"]').forEach(el=>el.addEventListener('change',()=>{state.page=1;loadMessages().catch(()=>{});}));
@@ -259,11 +325,15 @@ els.mobileReadBtn.addEventListener('click',()=>markReadByIds([state.actionId]).c
 els.mobileDeleteBtn.addEventListener('click',()=>deleteByIds([state.actionId]).catch(()=>{}));
 els.mobileCancelBtn.addEventListener('click',closeMobileAction);
 els.mobileActionMask.addEventListener('click',e=>{if(e.target===els.mobileActionMask)closeMobileAction();});
+els.confirmCancelBtn.addEventListener('click',closeConfirm);
+els.confirmOkBtn.addEventListener('click',()=>runConfirm().catch(()=>{}));
+els.confirmMask.addEventListener('click',e=>{if(e.target===els.confirmMask)closeConfirm();});
 els.checkAll.addEventListener('change',e=>{if(e.target.checked)state.list.forEach(item=>state.selected.add(item.id));else state.selected.clear();renderDesktop();});
 els.bulkReadBtn.addEventListener('click',()=>markReadByIds(Array.from(state.selected)).catch(()=>{}));
 els.bulkDeleteBtn.addEventListener('click',()=>deleteByIds(Array.from(state.selected)).catch(()=>{}));
 window.addEventListener('resize',()=>render());
 swallowLongPressOnModal(els.mobileActionModal);
+swallowLongPressOnModal(els.confirmModal);
 normalizeTimeInputs();
 
 loadMessages().catch(()=>{});

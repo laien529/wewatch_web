@@ -179,6 +179,15 @@ app.post('/api/messages/read', auth, async (req, res) => {
   }
 });
 
+app.post('/api/messages/read-all', auth, async (req, res) => {
+  try {
+    const [result] = await pool.execute('UPDATE upload_records SET is_read = 1 WHERE is_read = 0');
+    res.json({ code: 0, message: 'ok', data: { updated: result.affectedRows || 0 } });
+  } catch (e) {
+    res.status(500).json({ code: 500, message: e.message });
+  }
+});
+
 app.delete('/api/messages', auth, async (req, res) => {
   try {
     const ids = Array.isArray(req.body.ids) ? req.body.ids.map(v => parseInt(v, 10)).filter(Boolean) : [];
@@ -186,6 +195,15 @@ app.delete('/api/messages', auth, async (req, res) => {
     const placeholders = ids.map(() => '?').join(',');
     await pool.execute(`DELETE FROM upload_records WHERE id IN (${placeholders})`, ids);
     res.json({ code: 0, message: 'ok', data: { deleted: ids.length } });
+  } catch (e) {
+    res.status(500).json({ code: 500, message: e.message });
+  }
+});
+
+app.delete('/api/messages/clear', auth, async (req, res) => {
+  try {
+    const [result] = await pool.execute('DELETE FROM upload_records');
+    res.json({ code: 0, message: 'ok', data: { deleted: result.affectedRows || 0 } });
   } catch (e) {
     res.status(500).json({ code: 500, message: e.message });
   }

@@ -32,7 +32,9 @@
 以下管理操作仍需要携带 JWT：
 
 - `POST /api/messages/read`
+- `POST /api/messages/read-all`
 - `DELETE /api/messages`
+- `DELETE /api/messages/clear`
 
 调用仍需鉴权的管理接口时，请求头格式如下：
 
@@ -369,7 +371,40 @@ GET /api/messages/1
 - `ids` 会被转换为整数，无法转换或为 0 的值会被过滤。
 - 当前返回的 `updated` 是请求中有效 ID 的数量，不是数据库实际命中的行数。
 
-## 8. 删除消息
+## 8. 一键标记全部已读
+
+### `POST /api/messages/read-all`
+
+需要鉴权。用于将全部未读消息标记为已读。
+
+请求参数：无。
+
+请求示例：
+
+```http
+POST /api/messages/read-all
+Authorization: Bearer <token>
+```
+
+成功响应：
+
+```json
+{
+  "code": 0,
+  "message": "ok",
+  "data": {
+    "updated": 10
+  }
+}
+```
+
+字段说明：
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `updated` | number | 本次实际更新为已读的消息数量 |
+
+## 9. 删除消息
 
 ### `DELETE /api/messages`
 
@@ -415,7 +450,45 @@ GET /api/messages/1
 - `ids` 会被转换为整数，无法转换或为 0 的值会被过滤。
 - 当前返回的 `deleted` 是请求中有效 ID 的数量，不是数据库实际删除的行数。
 
-## 9. 健康检查
+## 10. 清空全部消息
+
+### `DELETE /api/messages/clear`
+
+需要鉴权。用于删除全部消息。
+
+请求参数：无。
+
+请求示例：
+
+```http
+DELETE /api/messages/clear
+Authorization: Bearer <token>
+```
+
+成功响应：
+
+```json
+{
+  "code": 0,
+  "message": "ok",
+  "data": {
+    "deleted": 100
+  }
+}
+```
+
+字段说明：
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `deleted` | number | 本次实际删除的消息数量 |
+
+注意事项：
+
+- 该接口会清空全部消息，不受当前查询条件影响。
+- 该操作不可恢复，客户端调用前必须二次确认。
+
+## 11. 健康检查
 
 ### `GET /health`
 
@@ -430,7 +503,7 @@ GET /api/messages/1
 }
 ```
 
-## 10. 错误处理约定
+## 12. 错误处理约定
 
 当前实现中的常见错误响应：
 
@@ -446,11 +519,12 @@ GET /api/messages/1
 
 客户端建议同时判断 HTTP 状态码和响应体中的 `code` 字段。
 
-## 11. 客户端对接建议
+## 13. 客户端对接建议
 
 - 消息上传和消息查询接口当前无需登录，可直接调用。
 - 登录成功后保存 `data.token`，仅在调用标记已读、删除消息等管理接口时放入 `Authorization` 请求头。
 - 调用管理接口时如收到 `401`、`no token` 或 `invalid token`，清理本地 token 并引导用户重新登录。
+- 一键已读和清空全部属于全局操作，客户端调用前建议弹窗二次确认。
 - 上传消息时尽量提供稳定的 `recordKey`，便于客户端侧追踪数据。
 - 查询列表时建议固定传入 `page` 和 `pageSize`，避免依赖默认值。
 - `contentJson` 是原始消息对象，客户端展示正文时可优先读取 `contentJson.content`，其次读取 `contentJson.message`。
