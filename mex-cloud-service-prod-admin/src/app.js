@@ -42,7 +42,7 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
-app.post('/api/upload/batch', auth, async (req, res) => {
+app.post('/api/upload/batch', async (req, res) => {
   try {
     const records = Array.isArray(req.body.records) ? req.body.records : [];
     const taskId = String(Date.now());
@@ -69,7 +69,7 @@ app.post('/api/upload/batch', auth, async (req, res) => {
   }
 });
 
-app.get('/api/messages', auth, async (req, res) => {
+app.get('/api/messages', async (req, res) => {
   try {
     const page = Math.max(parseInt(req.query.page || '1', 10), 1);
     const pageSize = Math.min(Math.max(parseInt(req.query.pageSize || '20', 10), 1), 100);
@@ -140,7 +140,7 @@ app.get('/api/messages', auth, async (req, res) => {
   }
 });
 
-app.get('/api/messages/:id', auth, async (req, res) => {
+app.get('/api/messages/:id', async (req, res) => {
   try {
     const [rows] = await pool.execute(
       'SELECT id, task_id, record_key, sender, content_json, created_at, is_read FROM upload_records WHERE id = ? LIMIT 1',

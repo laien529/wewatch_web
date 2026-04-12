@@ -266,8 +266,7 @@ window.addEventListener('resize',()=>render());
 swallowLongPressOnModal(els.mobileActionModal);
 normalizeTimeInputs();
 
-if(state.token) loadMessages().catch(()=>{});
-else openLogin();
+loadMessages().catch(()=>{});
 </script>
 </body>
 </html>
