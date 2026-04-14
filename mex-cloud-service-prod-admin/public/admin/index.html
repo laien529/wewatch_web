@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Mex Cloud 管理后台</title>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📨</text></svg>">
+<title>微看</title>
+<link rel="icon" href="/admin/ic_launcher.png">
 <style>
   :root{--bg:#f8fafc;--card:#fff;--line:#e2e8f0;--text:#0f172a;--muted:#64748b;--primary:#111827;--danger:#dc2626;--soft:#e5e7eb;--unread:#eefcf2}
   *{box-sizing:border-box;-webkit-touch-callout:none}
@@ -67,6 +67,7 @@
         <button id="queryBtn" class="btn primary compact">查询</button>
         <button id="resetBtn" class="btn gray compact">重置</button>
         <span id="unreadBadge" class="badge">0</span>
+        <button id="notifyBtn" class="btn outline compact">通知</button>
         <button id="readAllBtn" class="btn outline compact">一键已读</button>
         <button id="clearAllBtn" class="btn danger compact">清空</button>
         <div class="desktop-actions">
@@ -150,12 +151,14 @@
   </div>
 
 <script>
+const APP_NAME='微看';
+const APP_ICON='/admin/ic_launcher.png';
 const LS_TOKEN='mex_admin_token';
 const LS_USER='mex_admin_user';
 const LONG_PRESS_DELAY=700;
 const LONG_PRESS_MOVE_LIMIT=10;
 const AUTO_REFRESH_INTERVAL=60000;
-const state={token:localStorage.getItem(LS_TOKEN)||'',username:localStorage.getItem(LS_USER)||'admin',page:1,totalPages:1,total:0,unreadTotal:0,loadingLogin:false,loadingMessages:false,confirming:false,confirmAction:null,longPressTimer:null,actionId:null,list:[],selected:new Set()};
+const state={token:localStorage.getItem(LS_TOKEN)||'',username:localStorage.getItem(LS_USER)||'admin',page:1,totalPages:1,total:0,unreadTotal:0,lastUnreadTotal:null,loadingLogin:false,loadingMessages:false,confirming:false,confirmAction:null,longPressTimer:null,actionId:null,list:[],selected:new Set()};
 const els={
   sender:document.getElementById('sender'),
   startTime:document.getElementById('startTime'),
@@ -163,6 +166,7 @@ const els={
   queryBtn:document.getElementById('queryBtn'),
   resetBtn:document.getElementById('resetBtn'),
   unreadBadge:document.getElementById('unreadBadge'),
+  notifyBtn:document.getElementById('notifyBtn'),
   readAllBtn:document.getElementById('readAllBtn'),
   clearAllBtn:document.getElementById('clearAllBtn'),
   mobileList:document.getElementById('mobileList'),
@@ -198,6 +202,49 @@ function linkify(text=''){return escapeHtml(text).replace(/(https?:\/\/[^\s]+)/g
 function formatDate(v){const d=new Date(v);if(Number.isNaN(d.getTime())) return String(v||'-');const p=n=>String(n).padStart(2,'0');return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;}
 function normalizeTimeInputs(){[els.startTime,els.endTime].forEach(el=>{el.step=3600;});}
 function haptic(){try{if(navigator.vibrate) navigator.vibrate(18);}catch(e){}}
+function supportsNotification(){return 'Notification' in window&&window.isSecureContext;}
+function updateNotifyButton(){
+  if(!supportsNotification()){
+    els.notifyBtn.textContent='无通知';
+    els.notifyBtn.disabled=true;
+    return;
+  }
+  if(Notification.permission==='granted'){
+    els.notifyBtn.textContent='通知已开';
+    els.notifyBtn.disabled=true;
+  }else if(Notification.permission==='denied'){
+    els.notifyBtn.textContent='通知关闭';
+    els.notifyBtn.disabled=true;
+  }else{
+    els.notifyBtn.textContent='通知';
+    els.notifyBtn.disabled=false;
+  }
+}
+async function requestNotificationPermission(){
+  if(!supportsNotification()) return;
+  const permission=await Notification.requestPermission();
+  updateNotifyButton();
+  if(permission==='granted'){
+    const notification=new Notification(APP_NAME,{body:'新消息通知已开启',icon:APP_ICON,badge:APP_ICON,tag:'wewatch-notify-enabled'});
+    window.setTimeout(()=>notification.close(),3000);
+  }
+}
+function shouldNotifyNewMessages(count){
+  return count>0&&supportsNotification()&&Notification.permission==='granted'&&(document.hidden||!document.hasFocus());
+}
+function notifyNewMessages(count,total){
+  if(!shouldNotifyNewMessages(count)) return;
+  const body=`收到 ${count} 条新消息，当前未读 ${total} 条`;
+  const notification=new Notification(APP_NAME,{body,icon:APP_ICON,badge:APP_ICON,tag:'wewatch-new-message',renotify:true});
+  notification.onclick=()=>{window.focus();notification.close();autoRefreshMessages();};
+}
+function trackUnreadChange(nextUnreadTotal){
+  const previous=state.lastUnreadTotal;
+  state.lastUnreadTotal=nextUnreadTotal;
+  if(previous===null) return;
+  const increased=nextUnreadTotal-previous;
+  notifyNewMessages(increased,nextUnreadTotal);
+}
 function openLogin(message=''){els.loginUsername.value=state.username||'admin';els.loginPassword.value='123456';els.loginTip.textContent=message;els.loginMask.style.display='flex';}
 function closeLogin(){els.loginTip.textContent='';els.loginMask.style.display='none';}
 function openMobileAction(id){state.actionId=id;haptic();els.mobileActionMask.style.display='flex';}
@@ -331,7 +378,7 @@ function renderDesktop(){
 
 // ===== 动态标题未读数 =====
 function updateTitle() {
-  const base = "Mex Cloud 管理后台";
+  const base = APP_NAME;
   if (state.unreadTotal > 0) {
     document.title = `(${state.unreadTotal}) ` + base;
   } else {
@@ -349,7 +396,9 @@ async function loadMessages(){
   if(els.endTime.value) params.set('endTime',els.endTime.value.replace('T',' '));
   try{
     const data=await apiFetch('/api/messages?'+params.toString());
-    state.total=Number(data.data?.pagination?.total||0);state.page=Number(data.data?.pagination?.page||1);state.totalPages=Number(data.data?.pagination?.totalPages||1);state.unreadTotal=Number(data.data?.unreadTotal||0);state.list=(data.data?.list||[]).map(normalize);state.selected.clear();render();
+    const nextUnreadTotal=Number(data.data?.unreadTotal||0);
+    trackUnreadChange(nextUnreadTotal);
+    state.total=Number(data.data?.pagination?.total||0);state.page=Number(data.data?.pagination?.page||1);state.totalPages=Number(data.data?.pagination?.totalPages||1);state.unreadTotal=nextUnreadTotal;state.list=(data.data?.list||[]).map(normalize);state.selected.clear();render();
   }finally{
     state.loadingMessages=false;
   }
@@ -371,6 +420,7 @@ async function clearAllMessages(){const data=await apiFetch('/api/messages/clear
 
 els.queryBtn.addEventListener('click',()=>{state.page=1;loadMessages().catch(()=>{});});
 els.resetBtn.addEventListener('click',()=>{els.sender.value='';els.startTime.value='';els.endTime.value='';state.page=1;document.querySelector('input[name="pageSize"][value="10"]').checked=true;loadMessages().catch(()=>{});});
+els.notifyBtn.addEventListener('click',()=>requestNotificationPermission().catch(()=>{}));
 els.readAllBtn.addEventListener('click',()=>openConfirm({title:'一键已读',text:'确定将全部未读消息标记为已读吗？',okText:'确认已读',okClass:'primary',onConfirm:markAllRead}));
 els.clearAllBtn.addEventListener('click',()=>openConfirm({title:'清空消息',text:'确定清空全部消息吗？此操作不可恢复。',okText:'确认清空',okClass:'danger',onConfirm:clearAllMessages}));
 els.prevBtn.addEventListener('click',()=>{if(state.page>1){state.page-=1;loadMessages().catch(()=>{});}});
@@ -394,6 +444,7 @@ document.addEventListener('visibilitychange',()=>{if(!document.hidden) autoRefre
 swallowLongPressOnModal(els.mobileActionModal);
 swallowLongPressOnModal(els.confirmModal);
 normalizeTimeInputs();
+updateNotifyButton();
 startAutoRefresh();
 
 loadMessages().catch(()=>{});
