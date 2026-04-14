@@ -152,6 +152,8 @@
 <script>
 const LS_TOKEN='mex_admin_token';
 const LS_USER='mex_admin_user';
+const LONG_PRESS_DELAY=700;
+const LONG_PRESS_MOVE_LIMIT=10;
 const state={token:localStorage.getItem(LS_TOKEN)||'',username:localStorage.getItem(LS_USER)||'admin',page:1,totalPages:1,total:0,unreadTotal:0,loadingLogin:false,confirming:false,confirmAction:null,longPressTimer:null,actionId:null,list:[],selected:new Set()};
 const els={
   sender:document.getElementById('sender'),
@@ -262,11 +264,48 @@ function swallowLongPressOnModal(node){
     node.addEventListener(type,e=>{e.stopPropagation();if(type==='contextmenu')e.preventDefault();},{passive:false});
   });
 }
+function cancelLongPress(){
+  if(state.longPressTimer) clearTimeout(state.longPressTimer);
+  state.longPressTimer=null;
+}
 function bindLongPress(node,id,isRead){
   if(isDesktop()||isRead) return;
-  const start=e=>{e.stopPropagation();state.longPressTimer=setTimeout(()=>openMobileAction(id),550);};
-  const cancel=e=>{if(e)e.stopPropagation();if(state.longPressTimer)clearTimeout(state.longPressTimer);state.longPressTimer=null;};
+  let startX=0;
+  let startY=0;
+  let touchId=null;
+  const getTouch=e=>{
+    const touches=Array.from(e.touches||[]);
+    return touches.find(t=>t.identifier===touchId)||touches[0]||null;
+  };
+  const start=e=>{
+    if(e.touches.length!==1||e.target.closest('a,button,input,label')) return;
+    e.stopPropagation();
+    cancelLongPress();
+    const touch=e.touches[0];
+    touchId=touch.identifier;
+    startX=touch.clientX;
+    startY=touch.clientY;
+    state.longPressTimer=setTimeout(()=>{
+      state.longPressTimer=null;
+      openMobileAction(id);
+    },LONG_PRESS_DELAY);
+  };
+  const move=e=>{
+    if(!state.longPressTimer) return;
+    if(e.touches.length!==1){cancelLongPress();return;}
+    const touch=getTouch(e);
+    if(!touch){cancelLongPress();return;}
+    const dx=Math.abs(touch.clientX-startX);
+    const dy=Math.abs(touch.clientY-startY);
+    if(dx>LONG_PRESS_MOVE_LIMIT||dy>LONG_PRESS_MOVE_LIMIT) cancelLongPress();
+  };
+  const cancel=e=>{
+    if(e)e.stopPropagation();
+    cancelLongPress();
+    touchId=null;
+  };
   node.addEventListener('touchstart',start,{passive:true});
+  node.addEventListener('touchmove',move,{passive:true});
   node.addEventListener('touchend',cancel,{passive:true});
   node.addEventListener('touchcancel',cancel,{passive:true});
 }
@@ -331,7 +370,8 @@ els.confirmMask.addEventListener('click',e=>{if(e.target===els.confirmMask)close
 els.checkAll.addEventListener('change',e=>{if(e.target.checked)state.list.forEach(item=>state.selected.add(item.id));else state.selected.clear();renderDesktop();});
 els.bulkReadBtn.addEventListener('click',()=>markReadByIds(Array.from(state.selected)).catch(()=>{}));
 els.bulkDeleteBtn.addEventListener('click',()=>deleteByIds(Array.from(state.selected)).catch(()=>{}));
-window.addEventListener('resize',()=>render());
+window.addEventListener('scroll',cancelLongPress,{passive:true});
+window.addEventListener('resize',()=>{cancelLongPress();render();});
 swallowLongPressOnModal(els.mobileActionModal);
 swallowLongPressOnModal(els.confirmModal);
 normalizeTimeInputs();
