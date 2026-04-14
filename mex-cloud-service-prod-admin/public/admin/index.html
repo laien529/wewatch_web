@@ -355,7 +355,7 @@ async function loadMessages(){
   }
 }
 function canAutoRefresh(){
-  return document.visibilityState==='visible'&&!state.confirming&&els.loginMask.style.display!=='flex'&&els.mobileActionMask.style.display!=='flex'&&els.confirmMask.style.display!=='flex';
+  return !state.confirming&&els.loginMask.style.display!=='flex'&&els.mobileActionMask.style.display!=='flex'&&els.confirmMask.style.display!=='flex';
 }
 function autoRefreshMessages(){
   if(!canAutoRefresh()) return;
