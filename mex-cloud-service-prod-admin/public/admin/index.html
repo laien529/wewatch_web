@@ -154,7 +154,8 @@ const LS_TOKEN='mex_admin_token';
 const LS_USER='mex_admin_user';
 const LONG_PRESS_DELAY=700;
 const LONG_PRESS_MOVE_LIMIT=10;
-const state={token:localStorage.getItem(LS_TOKEN)||'',username:localStorage.getItem(LS_USER)||'admin',page:1,totalPages:1,total:0,unreadTotal:0,loadingLogin:false,confirming:false,confirmAction:null,longPressTimer:null,actionId:null,list:[],selected:new Set()};
+const AUTO_REFRESH_INTERVAL=60000;
+const state={token:localStorage.getItem(LS_TOKEN)||'',username:localStorage.getItem(LS_USER)||'admin',page:1,totalPages:1,total:0,unreadTotal:0,loadingLogin:false,loadingMessages:false,confirming:false,confirmAction:null,longPressTimer:null,actionId:null,list:[],selected:new Set()};
 const els={
   sender:document.getElementById('sender'),
   startTime:document.getElementById('startTime'),
@@ -340,12 +341,28 @@ function updateTitle() {
 
 function render(){els.unreadBadge.textContent=String(state.unreadTotal||0);els.pageInfo.textContent=`第 ${state.page} / ${state.totalPages} 页，共 ${state.total} 条`;renderMobile();renderDesktop();updateTitle();}
 async function loadMessages(){
+  if(state.loadingMessages) return;
+  state.loadingMessages=true;
   const params=new URLSearchParams();params.set('page',String(state.page));params.set('pageSize',String(currentPageSize()));
   if(els.sender.value.trim()) params.set('sender',els.sender.value.trim());
   if(els.startTime.value) params.set('startTime',els.startTime.value.replace('T',' '));
   if(els.endTime.value) params.set('endTime',els.endTime.value.replace('T',' '));
-  const data=await apiFetch('/api/messages?'+params.toString());
-  state.total=Number(data.data?.pagination?.total||0);state.page=Number(data.data?.pagination?.page||1);state.totalPages=Number(data.data?.pagination?.totalPages||1);state.unreadTotal=Number(data.data?.unreadTotal||0);state.list=(data.data?.list||[]).map(normalize);state.selected.clear();render();
+  try{
+    const data=await apiFetch('/api/messages?'+params.toString());
+    state.total=Number(data.data?.pagination?.total||0);state.page=Number(data.data?.pagination?.page||1);state.totalPages=Number(data.data?.pagination?.totalPages||1);state.unreadTotal=Number(data.data?.unreadTotal||0);state.list=(data.data?.list||[]).map(normalize);state.selected.clear();render();
+  }finally{
+    state.loadingMessages=false;
+  }
+}
+function canAutoRefresh(){
+  return document.visibilityState==='visible'&&!state.confirming&&els.loginMask.style.display!=='flex'&&els.mobileActionMask.style.display!=='flex'&&els.confirmMask.style.display!=='flex';
+}
+function autoRefreshMessages(){
+  if(!canAutoRefresh()) return;
+  loadMessages().catch(()=>{});
+}
+function startAutoRefresh(){
+  window.setInterval(autoRefreshMessages,AUTO_REFRESH_INTERVAL);
 }
 async function markReadByIds(ids){if(!ids.length) return;const data=await apiFetch('/api/messages/read',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ids})});if(data.code===0){await loadMessages();closeMobileAction();}}
 async function deleteByIds(ids){if(!ids.length) return;const data=await apiFetch('/api/messages',{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({ids})});if(data.code===0){await loadMessages();closeMobileAction();}}
@@ -372,9 +389,12 @@ els.bulkReadBtn.addEventListener('click',()=>markReadByIds(Array.from(state.sele
 els.bulkDeleteBtn.addEventListener('click',()=>deleteByIds(Array.from(state.selected)).catch(()=>{}));
 window.addEventListener('scroll',cancelLongPress,{passive:true});
 window.addEventListener('resize',()=>{cancelLongPress();render();});
+window.addEventListener('focus',autoRefreshMessages);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden) autoRefreshMessages();});
 swallowLongPressOnModal(els.mobileActionModal);
 swallowLongPressOnModal(els.confirmModal);
 normalizeTimeInputs();
+startAutoRefresh();
 
 loadMessages().catch(()=>{});
 </script>
