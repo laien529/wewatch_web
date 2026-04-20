@@ -10,11 +10,11 @@
   *{box-sizing:border-box;-webkit-touch-callout:none}
   body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--bg);color:var(--text)}
   .toolbar{position:sticky;top:0;z-index:20;background:#fff;border-bottom:1px solid var(--line);padding:10px}
-  .toolbar-row{display:flex;gap:8px;align-items:center}
+  .toolbar-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
   .toolbar-row + .toolbar-row{margin-top:8px}
   .input{padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;background:#fff;min-width:0}
-  .input.sender{width:92px;min-width:92px}
-  .input.time{width:calc(50% - 4px)}
+  .input.search{width:92px;min-width:92px;flex:0 0 92px}
+  .input.date{width:128px;min-width:128px}
   .btn{padding:8px 12px;border:none;border-radius:8px;font-size:13px;cursor:pointer;white-space:nowrap}
   .btn.compact{padding:8px 10px}
   .btn.primary{background:var(--primary);color:#fff}
@@ -22,8 +22,16 @@
   .btn.danger{background:var(--danger);color:#fff}
   .btn.outline{background:#fff;border:1px solid #cbd5e1;color:var(--text)}
   .badge{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:22px;padding:0 7px;border-radius:999px;background:var(--danger);color:#fff;font-size:11px;font-weight:700}
+  .toolbar-filters{gap:6px}
   .toolbar-actions{margin-left:auto;display:flex;gap:6px;align-items:center;min-width:0;overflow-x:auto;scrollbar-width:none}
   .toolbar-actions::-webkit-scrollbar{display:none}
+  .filter-group{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .filter-label{font-size:12px;color:var(--muted);white-space:nowrap}
+  .filter-options{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+  .option-chip{display:inline-flex;align-items:center;gap:4px;padding:5px 8px;border:1px solid #cbd5e1;border-radius:999px;background:#fff;font-size:12px;color:var(--text);white-space:nowrap}
+  .option-chip input{margin:0}
+  .date-range{display:flex;gap:6px;align-items:center;flex-wrap:nowrap}
+  .date-sep{font-size:12px;color:var(--muted);white-space:nowrap}
   .desktop-actions{display:none}
   .list{padding:6px}
   .table-wrap{display:none}
@@ -50,19 +58,53 @@
   .table tr.unread{background:var(--unread)}
   .muted{color:var(--muted)}
   @media (min-width:768px){
-    .input.sender{width:170px;min-width:170px}
-    .input.time{width:170px}
+    .input.search{width:160px;min-width:160px;flex:0 0 160px}
+    .input.date{width:132px;min-width:132px}
+    .toolbar{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:12px;row-gap:8px;align-items:start}
+    .toolbar-row + .toolbar-row{margin-top:0}
+    .toolbar-filters{grid-column:1;min-width:0}
+    .toolbar-actions-row{grid-column:2;justify-content:flex-end}
     .toolbar-actions{gap:8px;overflow:visible}
     .desktop-actions{display:flex;gap:8px;margin-left:8px}
     .mobile-list{display:none}
     .table-wrap{display:block;padding:8px}
   }
+  @media (min-width:1100px){
+    .toolbar-filters{flex-wrap:nowrap}
+  }
+  @media (max-width:767px){
+    .toolbar-actions-row{width:100%}
+  }
 </style>
 </head>
 <body>
   <div class="toolbar">
-    <div class="toolbar-row">
-      <input id="sender" class="input sender" placeholder="发送人">
+    <div class="toolbar-row toolbar-filters">
+      <input id="searchText" class="input search" placeholder="查找关键词">
+      <div class="date-range">
+        <input id="startTime" class="input date" type="date" placeholder="开始日期">
+        <span class="date-sep">至</span>
+        <input id="endTime" class="input date" type="date" placeholder="结束日期">
+      </div>
+      <div class="filter-group">
+        <span class="filter-label">时间</span>
+        <div class="filter-options">
+          <label class="option-chip"><input type="radio" name="quickHours" value="" checked>不限</label>
+          <label class="option-chip"><input type="radio" name="quickHours" value="12">12小时内</label>
+          <label class="option-chip"><input type="radio" name="quickHours" value="24">24小时内</label>
+          <label class="option-chip"><input type="radio" name="quickHours" value="72">3天内</label>
+        </div>
+      </div>
+      <div class="filter-group">
+        <span class="filter-label">关键词</span>
+        <div class="filter-options">
+          <label class="option-chip"><input type="checkbox" name="keywordFilter" value="direct">直发</label>
+          <label class="option-chip"><input type="checkbox" name="keywordFilter" value="miniapp">小程序</label>
+          <label class="option-chip"><input type="checkbox" name="keywordFilter" value="link">链接</label>
+        </div>
+      </div>
+    </div>
+    <div class="toolbar-row toolbar-actions-row">
       <div class="toolbar-actions">
         <button id="queryBtn" class="btn primary compact">查询</button>
         <button id="resetBtn" class="btn gray compact">重置</button>
@@ -75,10 +117,6 @@
           <button id="bulkDeleteBtn" class="btn danger">选中删除</button>
         </div>
       </div>
-    </div>
-    <div class="toolbar-row">
-      <input id="startTime" class="input time" type="datetime-local" placeholder="开始时间">
-      <input id="endTime" class="input time" type="datetime-local" placeholder="结束时间">
     </div>
   </div>
 
@@ -160,7 +198,7 @@ const LONG_PRESS_MOVE_LIMIT=10;
 const AUTO_REFRESH_INTERVAL=60000;
 const state={token:localStorage.getItem(LS_TOKEN)||'',username:localStorage.getItem(LS_USER)||'admin',page:1,totalPages:1,total:0,unreadTotal:0,lastUnreadTotal:null,loadingLogin:false,loadingMessages:false,confirming:false,confirmAction:null,longPressTimer:null,actionId:null,list:[],selected:new Set()};
 const els={
-  sender:document.getElementById('sender'),
+  searchText:document.getElementById('searchText'),
   startTime:document.getElementById('startTime'),
   endTime:document.getElementById('endTime'),
   queryBtn:document.getElementById('queryBtn'),
@@ -197,10 +235,26 @@ const els={
 };
 function isDesktop(){return window.matchMedia('(min-width:768px)').matches;}
 function currentPageSize(){const checked=document.querySelector('input[name="pageSize"]:checked');return checked?Number(checked.value):10;}
+function currentQuickHours(){const checked=document.querySelector('input[name="quickHours"]:checked');return checked&&checked.value?Number(checked.value):0;}
+function selectedKeywords(){return Array.from(document.querySelectorAll('input[name="keywordFilter"]:checked')).map(el=>el.value);}
 function escapeHtml(s=''){return String(s).replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));}
 function linkify(text=''){return escapeHtml(text).replace(/(https?:\/\/[^\s]+)/g,'<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>');}
 function formatDate(v){const d=new Date(v);if(Number.isNaN(d.getTime())) return String(v||'-');const p=n=>String(n).padStart(2,'0');return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;}
-function normalizeTimeInputs(){[els.startTime,els.endTime].forEach(el=>{el.step=3600;});}
+function normalizeTimeInputs(){}
+function clearQuickHours(){
+  const none=document.querySelector('input[name="quickHours"][value=""]');
+  if(none) none.checked=true;
+}
+function applyQuickHours(hours){
+  if(!hours){
+    clearQuickHours();
+    els.startTime.value='';
+    els.endTime.value='';
+    return;
+  }
+  els.startTime.value='';
+  els.endTime.value='';
+}
 function haptic(){try{if(navigator.vibrate) navigator.vibrate(18);}catch(e){}}
 function supportsNotification(){return 'Notification' in window&&window.isSecureContext;}
 function updateNotifyButton(){
@@ -391,9 +445,11 @@ async function loadMessages(){
   if(state.loadingMessages) return;
   state.loadingMessages=true;
   const params=new URLSearchParams();params.set('page',String(state.page));params.set('pageSize',String(currentPageSize()));
-  if(els.sender.value.trim()) params.set('sender',els.sender.value.trim());
-  if(els.startTime.value) params.set('startTime',els.startTime.value.replace('T',' '));
-  if(els.endTime.value) params.set('endTime',els.endTime.value.replace('T',' '));
+  if(els.searchText.value.trim()) params.set('q',els.searchText.value.trim());
+  if(currentQuickHours()>0) params.set('quickHours',String(currentQuickHours()));
+  if(els.startTime.value) params.set('startTime',`${els.startTime.value} 00:00:00`);
+  if(els.endTime.value) params.set('endTime',`${els.endTime.value} 23:59:59`);
+  selectedKeywords().forEach(keyword=>params.append('keyword',keyword));
   try{
     const data=await apiFetch('/api/messages?'+params.toString());
     const nextUnreadTotal=Number(data.data?.unreadTotal||0);
@@ -413,19 +469,25 @@ function autoRefreshMessages(){
 function startAutoRefresh(){
   window.setInterval(autoRefreshMessages,AUTO_REFRESH_INTERVAL);
 }
+function triggerSearch(){
+  state.page=1;
+  loadMessages().catch(()=>{});
+}
 async function markReadByIds(ids){if(!ids.length) return;const data=await apiFetch('/api/messages/read',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ids})});if(data.code===0){await loadMessages();closeMobileAction();}}
 async function deleteByIds(ids){if(!ids.length) return;const data=await apiFetch('/api/messages',{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({ids})});if(data.code===0){await loadMessages();closeMobileAction();}}
 async function markAllRead(){const data=await apiFetch('/api/messages/read-all',{method:'POST'});if(data.code===0){await loadMessages();}}
 async function clearAllMessages(){const data=await apiFetch('/api/messages/clear',{method:'DELETE'});if(data.code===0){state.page=1;await loadMessages();}}
 
-els.queryBtn.addEventListener('click',()=>{state.page=1;loadMessages().catch(()=>{});});
-els.resetBtn.addEventListener('click',()=>{els.sender.value='';els.startTime.value='';els.endTime.value='';state.page=1;document.querySelector('input[name="pageSize"][value="10"]').checked=true;loadMessages().catch(()=>{});});
+els.queryBtn.addEventListener('click',triggerSearch);
+els.resetBtn.addEventListener('click',()=>{els.searchText.value='';els.startTime.value='';els.endTime.value='';state.page=1;document.querySelector('input[name="pageSize"][value="10"]').checked=true;clearQuickHours();document.querySelectorAll('input[name="keywordFilter"]').forEach(el=>{el.checked=false;});loadMessages().catch(()=>{});});
 els.notifyBtn.addEventListener('click',()=>requestNotificationPermission().catch(()=>{}));
 els.readAllBtn.addEventListener('click',()=>openConfirm({title:'一键已读',text:'确定将全部未读消息标记为已读吗？',okText:'确认已读',okClass:'primary',onConfirm:markAllRead}));
 els.clearAllBtn.addEventListener('click',()=>openConfirm({title:'清空消息',text:'确定清空全部消息吗？此操作不可恢复。',okText:'确认清空',okClass:'danger',onConfirm:clearAllMessages}));
 els.prevBtn.addEventListener('click',()=>{if(state.page>1){state.page-=1;loadMessages().catch(()=>{});}});
 els.nextBtn.addEventListener('click',()=>{if(state.page<state.totalPages){state.page+=1;loadMessages().catch(()=>{});}});
 document.querySelectorAll('input[name="pageSize"]').forEach(el=>el.addEventListener('change',()=>{state.page=1;loadMessages().catch(()=>{});}));
+document.querySelectorAll('input[name="quickHours"]').forEach(el=>el.addEventListener('change',e=>{applyQuickHours(Number(e.target.value||0));triggerSearch();}));
+document.querySelectorAll('input[name="keywordFilter"]').forEach(el=>el.addEventListener('change',triggerSearch));
 els.loginBtn.addEventListener('click',doLogin);
 els.mobileReadBtn.addEventListener('click',()=>markReadByIds([state.actionId]).catch(()=>{}));
 els.mobileDeleteBtn.addEventListener('click',()=>deleteByIds([state.actionId]).catch(()=>{}));
@@ -441,6 +503,8 @@ window.addEventListener('scroll',cancelLongPress,{passive:true});
 window.addEventListener('resize',()=>{cancelLongPress();render();});
 window.addEventListener('focus',autoRefreshMessages);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden) autoRefreshMessages();});
+els.startTime.addEventListener('change',()=>{clearQuickHours();triggerSearch();});
+els.endTime.addEventListener('change',()=>{clearQuickHours();triggerSearch();});
 swallowLongPressOnModal(els.mobileActionModal);
 swallowLongPressOnModal(els.confirmModal);
 normalizeTimeInputs();

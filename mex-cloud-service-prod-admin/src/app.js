@@ -9,6 +9,20 @@ const auth = require('./auth');
 
 const app = express();
 
+function parseMultiValue(input) {
+  if (Array.isArray(input)) {
+    return input.flatMap(item => String(item).split(',')).map(item => item.trim()).filter(Boolean);
+  }
+  if (!input) return [];
+  return String(input).split(',').map(item => item.trim()).filter(Boolean);
+}
+
+function formatDateTime(value) {
+  const date = value instanceof Date ? value : new Date(value);
+  const p = n => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${p(date.getMonth() + 1)}-${p(date.getDate())} ${p(date.getHours())}:${p(date.getMinutes())}:${p(date.getSeconds())}`;
+}
+
 app.use(cors());
 app.use(express.json({ limit: '5mb' }));
 
@@ -74,10 +88,19 @@ app.get('/api/messages', async (req, res) => {
     const page = Math.max(parseInt(req.query.page || '1', 10), 1);
     const pageSize = Math.min(Math.max(parseInt(req.query.pageSize || '20', 10), 1), 100);
     const offset = (page - 1) * pageSize;
+    const contentSql = 'CAST(content_json AS CHAR)';
+    const q = String(req.query.q || req.query.sender || '').trim();
+    const keywords = parseMultiValue(req.query.keyword);
+    const quickHours = Math.max(parseInt(req.query.quickHours || '0', 10), 0);
 
     let whereSql = ' WHERE 1=1 ';
     const params = [];
 
+    if (quickHours > 0) {
+      const quickStart = new Date(Date.now() - quickHours * 60 * 60 * 1000);
+      whereSql += ' AND created_at >= ?';
+      params.push(formatDateTime(quickStart));
+    }
     if (req.query.startTime) {
       whereSql += ' AND created_at >= ?';
       params.push(req.query.startTime);
@@ -86,9 +109,32 @@ app.get('/api/messages', async (req, res) => {
       whereSql += ' AND created_at <= ?';
       params.push(req.query.endTime);
     }
-    if (req.query.sender) {
-      whereSql += ' AND sender LIKE ?';
-      params.push(`%${req.query.sender}%`);
+    if (q) {
+      whereSql += ` AND (sender LIKE ? OR ${contentSql} LIKE ?)`;
+      params.push(`%${q}%`, `%${q}%`);
+    }
+
+    if (keywords.length) {
+      const keywordConditions = [];
+
+      keywords.forEach(keyword => {
+        if (keyword === 'direct') {
+          keywordConditions.push(`${contentSql} LIKE ?`);
+          params.push('%直发%');
+        }
+        if (keyword === 'miniapp') {
+          keywordConditions.push(`${contentSql} LIKE ?`);
+          params.push('%小程序%');
+        }
+        if (keyword === 'link') {
+          keywordConditions.push(`(${contentSql} LIKE ? OR ${contentSql} LIKE ? OR ${contentSql} LIKE ?)`);
+          params.push('%http://%', '%https://%', '%链接%');
+        }
+      });
+
+      if (keywordConditions.length) {
+        whereSql += ` AND (${keywordConditions.join(' OR ')})`;
+      }
     }
 
     const [countRows] = await pool.execute(

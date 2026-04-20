@@ -204,7 +204,10 @@ sender -> from -> senderName -> ''
 | `pageSize` | number | 否 | `20` | 每页数量，范围为 1 到 100 |
 | `startTime` | string | 否 | - | 开始时间，过滤 `created_at >= startTime` |
 | `endTime` | string | 否 | - | 结束时间，过滤 `created_at <= endTime` |
-| `sender` | string | 否 | - | 发送人模糊查询 |
+| `quickHours` | number | 否 | - | 快捷时间筛选，支持 `12`、`24`、`72` |
+| `q` | string | 否 | - | 对发送人和消息体做模糊查询 |
+| `keyword` | string/string[] | 否 | - | 关键词筛选，支持多选：`direct`、`miniapp`、`link` |
+| `sender` | string | 否 | - | 兼容旧参数，等价于 `q` |
 
 时间参数建议格式：
 
@@ -212,10 +215,15 @@ sender -> from -> senderName -> ''
 YYYY-MM-DD HH:mm:ss
 ```
 
+如果客户端使用纯日期筛选，建议转换为：
+
+- `startTime = YYYY-MM-DD 00:00:00`
+- `endTime = YYYY-MM-DD 23:59:59`
+
 请求示例：
 
 ```http
-GET /api/messages?page=1&pageSize=20&sender=张三&startTime=2026-04-12%2000:00:00&endTime=2026-04-12%2023:59:59
+GET /api/messages?page=1&pageSize=20&q=张三&keyword=direct&keyword=link&quickHours=24
 ```
 
 成功响应：
@@ -273,6 +281,14 @@ GET /api/messages?page=1&pageSize=20&sender=张三&startTime=2026-04-12%2000:00:
 | `contentJson` | object | 客户端上传的原始消息对象 |
 | `createdAt` | string | 创建时间 |
 | `isRead` | boolean | 是否已读 |
+
+关键词筛选说明：
+
+| 值 | 说明 |
+| --- | --- |
+| `direct` | 匹配消息体中包含“直发”的记录 |
+| `miniapp` | 匹配消息体中包含“小程序”的记录 |
+| `link` | 匹配消息体中包含 `http://`、`https://` 或“链接”的记录 |
 
 ## 6. 查询消息详情
 
