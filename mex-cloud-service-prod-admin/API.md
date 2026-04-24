@@ -205,6 +205,7 @@ sender -> from -> senderName -> ''
 | `startTime` | string | 否 | - | 开始时间，过滤 `created_at >= startTime` |
 | `endTime` | string | 否 | - | 结束时间，过滤 `created_at <= endTime` |
 | `quickHours` | number | 否 | - | 快捷时间筛选，支持 `12`、`24`、`72` |
+| `unreadOnly` | string/number | 否 | - | 仅查询未读，支持 `1`、`true`、`yes` |
 | `q` | string | 否 | - | 对发送人和消息体做模糊查询 |
 | `keyword` | string/string[] | 否 | - | 关键词筛选，支持多选：`direct`、`miniapp`、`link` |
 | `sender` | string | 否 | - | 兼容旧参数，等价于 `q` |
@@ -223,7 +224,7 @@ YYYY-MM-DD HH:mm:ss
 请求示例：
 
 ```http
-GET /api/messages?page=1&pageSize=20&q=张三&keyword=direct&keyword=link&quickHours=24
+GET /api/messages?page=1&pageSize=20&q=张三&quickHours=24&unreadOnly=1&keyword=direct&keyword=link
 ```
 
 成功响应：

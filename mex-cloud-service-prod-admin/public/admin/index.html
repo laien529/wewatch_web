@@ -30,6 +30,7 @@
   .filter-options{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
   .option-chip{display:inline-flex;align-items:center;gap:4px;padding:5px 8px;border:1px solid #cbd5e1;border-radius:999px;background:#fff;font-size:12px;color:var(--text);white-space:nowrap}
   .option-chip input{margin:0}
+  .unread-chip{background:#fff1f2;border-color:#fda4af;color:#be123c;font-weight:600}
   .date-range{display:flex;gap:6px;align-items:center;flex-wrap:nowrap}
   .date-sep{font-size:12px;color:var(--muted);white-space:nowrap}
   .desktop-actions{display:none}
@@ -94,6 +95,9 @@
           <label class="option-chip"><input type="radio" name="quickHours" value="24">24小时内</label>
           <label class="option-chip"><input type="radio" name="quickHours" value="72">3天内</label>
         </div>
+      </div>
+      <div class="filter-group">
+        <label class="option-chip unread-chip"><input id="unreadOnly" type="checkbox" name="unreadOnly" value="1">只看未读</label>
       </div>
       <div class="filter-group">
         <span class="filter-label">关键词</span>
@@ -201,6 +205,7 @@ const els={
   searchText:document.getElementById('searchText'),
   startTime:document.getElementById('startTime'),
   endTime:document.getElementById('endTime'),
+  unreadOnly:document.getElementById('unreadOnly'),
   queryBtn:document.getElementById('queryBtn'),
   resetBtn:document.getElementById('resetBtn'),
   unreadBadge:document.getElementById('unreadBadge'),
@@ -449,6 +454,7 @@ async function loadMessages(){
   if(currentQuickHours()>0) params.set('quickHours',String(currentQuickHours()));
   if(els.startTime.value) params.set('startTime',`${els.startTime.value} 00:00:00`);
   if(els.endTime.value) params.set('endTime',`${els.endTime.value} 23:59:59`);
+  if(els.unreadOnly.checked) params.set('unreadOnly','1');
   selectedKeywords().forEach(keyword=>params.append('keyword',keyword));
   try{
     const data=await apiFetch('/api/messages?'+params.toString());
@@ -479,7 +485,7 @@ async function markAllRead(){const data=await apiFetch('/api/messages/read-all',
 async function clearAllMessages(){const data=await apiFetch('/api/messages/clear',{method:'DELETE'});if(data.code===0){state.page=1;await loadMessages();}}
 
 els.queryBtn.addEventListener('click',triggerSearch);
-els.resetBtn.addEventListener('click',()=>{els.searchText.value='';els.startTime.value='';els.endTime.value='';state.page=1;document.querySelector('input[name="pageSize"][value="10"]').checked=true;clearQuickHours();document.querySelectorAll('input[name="keywordFilter"]').forEach(el=>{el.checked=false;});loadMessages().catch(()=>{});});
+els.resetBtn.addEventListener('click',()=>{els.searchText.value='';els.startTime.value='';els.endTime.value='';els.unreadOnly.checked=false;state.page=1;document.querySelector('input[name="pageSize"][value="10"]').checked=true;clearQuickHours();document.querySelectorAll('input[name="keywordFilter"]').forEach(el=>{el.checked=false;});loadMessages().catch(()=>{});});
 els.notifyBtn.addEventListener('click',()=>requestNotificationPermission().catch(()=>{}));
 els.readAllBtn.addEventListener('click',()=>openConfirm({title:'一键已读',text:'确定将全部未读消息标记为已读吗？',okText:'确认已读',okClass:'primary',onConfirm:markAllRead}));
 els.clearAllBtn.addEventListener('click',()=>openConfirm({title:'清空消息',text:'确定清空全部消息吗？此操作不可恢复。',okText:'确认清空',okClass:'danger',onConfirm:clearAllMessages}));
@@ -487,6 +493,7 @@ els.prevBtn.addEventListener('click',()=>{if(state.page>1){state.page-=1;loadMes
 els.nextBtn.addEventListener('click',()=>{if(state.page<state.totalPages){state.page+=1;loadMessages().catch(()=>{});}});
 document.querySelectorAll('input[name="pageSize"]').forEach(el=>el.addEventListener('change',()=>{state.page=1;loadMessages().catch(()=>{});}));
 document.querySelectorAll('input[name="quickHours"]').forEach(el=>el.addEventListener('change',e=>{applyQuickHours(Number(e.target.value||0));triggerSearch();}));
+els.unreadOnly.addEventListener('change',triggerSearch);
 document.querySelectorAll('input[name="keywordFilter"]').forEach(el=>el.addEventListener('change',triggerSearch));
 els.loginBtn.addEventListener('click',doLogin);
 els.mobileReadBtn.addEventListener('click',()=>markReadByIds([state.actionId]).catch(()=>{}));

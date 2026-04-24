@@ -92,6 +92,7 @@ app.get('/api/messages', async (req, res) => {
     const q = String(req.query.q || req.query.sender || '').trim();
     const keywords = parseMultiValue(req.query.keyword);
     const quickHours = Math.max(parseInt(req.query.quickHours || '0', 10), 0);
+    const unreadOnly = ['1', 'true', 'yes'].includes(String(req.query.unreadOnly || '').toLowerCase());
 
     let whereSql = ' WHERE 1=1 ';
     const params = [];
@@ -112,6 +113,9 @@ app.get('/api/messages', async (req, res) => {
     if (q) {
       whereSql += ` AND (sender LIKE ? OR ${contentSql} LIKE ?)`;
       params.push(`%${q}%`, `%${q}%`);
+    }
+    if (unreadOnly) {
+      whereSql += ' AND is_read = 0';
     }
 
     if (keywords.length) {
