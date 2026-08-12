@@ -13,7 +13,7 @@
 ```json
 {
   "code": 0,
-  "message": "ok",
+  "message": "analysis queued",
   "data": {}
 }
 ```
@@ -35,6 +35,15 @@
 - `POST /api/messages/read-all`
 - `DELETE /api/messages`
 - `DELETE /api/messages/clear`
+- `GET /api/filter-groups`
+- `POST /api/filter-groups`
+- `PUT /api/filter-groups/:id`
+- `DELETE /api/filter-groups/:id`
+- `POST /api/filter-groups/:id/conditions`
+- `PUT /api/filter-conditions/:id`
+- `DELETE /api/filter-conditions/:id`
+- `POST /api/filter-groups/reindex`
+- `GET /api/upload-tasks/:taskId`
 
 调用仍需鉴权的管理接口时，请求头格式如下：
 
@@ -172,7 +181,10 @@ sender -> from -> senderName -> ''
   "message": "ok",
   "data": {
     "taskId": "1712900000000",
-    "batchCount": 2
+    "batchCount": 2,
+    "unmatchedCount": null,
+    "analysisBatches": 0,
+    "status": "analyzing"
   }
 }
 ```
@@ -181,14 +193,20 @@ sender -> from -> senderName -> ''
 
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
-| `taskId` | string | 服务端按当前时间戳生成的批次 ID |
-| `batchCount` | number | 本次实际插入数量 |
+| `taskId` | string | 服务端生成的批次 ID |
+| `batchCount` | number | 本次去重后实际入库的数量；不因未命中分组而丢弃 |
+| `unmatchedCount` | number/null | 分析完成前为 `null`；完成后为未命中任何当前启用分组的数量 |
+| `analysisBatches` | number | 已完成的 LLM 分析批次数；初始为 `0` |
+| `status` | string | 初始为 `analyzing`，可用 `GET /api/upload-tasks/:taskId` 查询后续状态 |
 
 注意事项：
 
 - 当前实现只会去重同一个请求批次内重复的 `recordKey`。
 - `recordKey` 为空时不会参与批次内去重。
 - 数据库中 `task_id + record_key` 有唯一索引，但由于每次上传都会生成新的 `taskId`，不同批次的相同 `recordKey` 仍可写入。
+- 客户端只需采集、上传原始消息；服务端先完成入库并返回，再由单进程后台队列异步执行本地解析、LLM 报酬分析与分组匹配。
+- 所有采集消息都会写入 `upload_records`；未命中任何分组的消息同样保留，并仅计入响应中的 `unmatchedCount`。
+- 应用重启时会自动继续处理状态仍为 `analyzing` 的上传任务。
 
 ## 5. 查询消息列表
 
@@ -209,6 +227,12 @@ sender -> from -> senderName -> ''
 | `q` | string | 否 | - | 对发送人和消息体做模糊查询 |
 | `keyword` | string/string[] | 否 | - | 关键词筛选，支持多选：`direct`、`miniapp`、`link` |
 | `sender` | string | 否 | - | 兼容旧参数，等价于 `q` |
+| `groupId` | number | 否 | - | 仅返回命中指定服务端过滤分组的消息 |
+| `conditionType` | string | 否 | - | 仅返回命中指定条件类型的消息：`contains`、`not_contains`、`regex`、`has_url` |
+| `compensationMin` | number | 否 | - | 报酬区间筛选下限（元）；可单独传入，表示“不低于此金额” |
+| `compensationMax` | number | 否 | - | 报酬区间筛选上限（元）；可单独传入，表示“不高于此金额” |
+
+所有筛选条件均先作用于全量 `upload_records`，再计算总数并分页返回；`page` 与 `pageSize` 只决定当前返回的展示行，不会限制金额、关键词或分组的匹配范围。
 
 时间参数建议格式：
 
@@ -225,6 +249,18 @@ YYYY-MM-DD HH:mm:ss
 
 ```http
 GET /api/messages?page=1&pageSize=20&q=张三&quickHours=24&unreadOnly=1&keyword=direct&keyword=link
+```
+
+按服务端过滤分组和条件类型筛选示例：
+
+```http
+GET /api/messages?page=1&pageSize=20&groupId=3&conditionType=contains
+```
+
+报酬区间交集筛选示例（`8000–20000` 会命中 `2–5 万`、`8k–12k` 与 `不超过 2w`）：
+
+```http
+GET /api/messages?page=1&pageSize=20&compensationMin=8000&compensationMax=20000
 ```
 
 成功响应：
@@ -291,7 +327,71 @@ GET /api/messages?page=1&pageSize=20&q=张三&quickHours=24&unreadOnly=1&keyword
 | `miniapp` | 匹配消息体中包含“小程序”的记录 |
 | `link` | 匹配消息体中包含 `http://`、`https://` 或“链接”的记录 |
 
-## 6. 查询消息详情
+## 6. 服务端过滤分组
+
+客户端只负责采集原始消息。服务端以“过滤分组 → 条件条目”的结构维护规则；消息入库后由后台队列异步计算匹配结果。所有消息和 LLM 解析结果都会入库；默认消息列表返回全部消息，只有传入 `groupId` 或 `conditionType` 时才筛出命中相应分组/条件的记录。分组的 `matchMode` 可以是任一条件命中（`any`）或全部条件命中（`all`）。
+
+条件类型：
+
+| `type` | `value` |
+| --- | --- |
+| `contains` | 必填，消息字段中包含的文字（不区分大小写） |
+| `not_contains` | 必填，消息字段中不包含的文字（不区分大小写） |
+| `regex` | 必填，合法的 JavaScript 正则表达式 |
+| `has_url` | 必填，`true` 或 `false` |
+| `compensation_range` | `minAmount`、`maxAmount`（元），至少填写一项；与已解析报酬区间有交集即命中 |
+
+匹配文本由上传记录的 `sender`、`from`、`senderName`、`title`、`content`、`message`、`text`、`chat`、`body`、`description`、`desc`、`summary`、`text_extra` 与 `textExtra` 字段组成。
+
+消息入库后，服务端在后台队列中使用本地规则与 DeepSeek OpenAI 兼容接口的 `deepseek-v4-flash` 批量提取报酬结构。每批最多 12 条、总文本不超过 1.6 万字符；批次进度和最终状态写入 `upload_tasks`。解析得到的 `minAmount`、`maxAmount`、单位、原文片段与置信度写入 `upload_record_compensations`，用于全量数值筛选，不依赖关键词枚举。
+
+### `GET /api/filter-groups`
+
+需要鉴权。返回过滤分组及其条件条目。
+
+### `POST /api/filter-groups`
+
+需要鉴权。创建分组：
+
+```json
+{ "name": "工作消息", "matchMode": "any", "enabled": true }
+```
+
+### `PUT /api/filter-groups/:id` / `DELETE /api/filter-groups/:id`
+
+需要鉴权。更新时可传 `name`、`matchMode`、`enabled` 中任意字段；删除会一并删除该分组的条件条目。
+
+### `POST /api/filter-groups/:id/conditions`
+
+需要鉴权。添加条件：
+
+```json
+{ "type": "contains", "value": "需求文档", "enabled": true, "sortOrder": 0 }
+```
+
+报酬区间条件示例：
+
+```json
+{ "type": "compensation_range", "minAmount": 8000, "maxAmount": 20000, "enabled": true }
+```
+
+### `PUT /api/filter-conditions/:id` / `DELETE /api/filter-conditions/:id`
+
+需要鉴权。更新或删除一个条件条目。
+
+### `POST /api/filter-groups/reindex`
+
+需要鉴权。按当前已启用的分组和条件，为全部历史消息重建匹配索引。新增、修改或启停分组后调用一次；新上传消息会自动匹配，无需调用。
+
+```json
+{ "code": 0, "message": "ok", "data": { "indexed": 100, "matchesWritten": 42 } }
+```
+
+### `GET /api/upload-tasks/:taskId`
+
+需要鉴权。读取批量上传任务的当前状态。`status` 为 `analyzing`、`completed` 或 `failed`；响应包含已完成的 LLM 批次数、实际入库数、未命中分组数与失败原因（如有）。
+
+## 7. 查询消息详情
 
 ### `GET /api/messages/:id`
 
@@ -342,7 +442,7 @@ GET /api/messages/1
 
 该响应的 HTTP 状态码为 `404`。
 
-## 7. 标记消息为已读
+## 8. 标记消息为已读
 
 ### `POST /api/messages/read`
 
@@ -388,7 +488,7 @@ GET /api/messages/1
 - `ids` 会被转换为整数，无法转换或为 0 的值会被过滤。
 - 当前返回的 `updated` 是请求中有效 ID 的数量，不是数据库实际命中的行数。
 
-## 8. 一键标记全部已读
+## 9. 一键标记全部已读
 
 ### `POST /api/messages/read-all`
 
@@ -421,7 +521,7 @@ Authorization: Bearer <token>
 | --- | --- | --- |
 | `updated` | number | 本次实际更新为已读的消息数量 |
 
-## 9. 删除消息
+## 10. 删除消息
 
 ### `DELETE /api/messages`
 
@@ -467,7 +567,7 @@ Authorization: Bearer <token>
 - `ids` 会被转换为整数，无法转换或为 0 的值会被过滤。
 - 当前返回的 `deleted` 是请求中有效 ID 的数量，不是数据库实际删除的行数。
 
-## 10. 清空全部消息
+## 11. 清空全部消息
 
 ### `DELETE /api/messages/clear`
 
@@ -505,7 +605,7 @@ Authorization: Bearer <token>
 - 该接口会清空全部消息，不受当前查询条件影响。
 - 该操作不可恢复，客户端调用前必须二次确认。
 
-## 11. 健康检查
+## 12. 健康检查
 
 ### `GET /health`
 
@@ -520,7 +620,7 @@ Authorization: Bearer <token>
 }
 ```
 
-## 12. 错误处理约定
+## 13. 错误处理约定
 
 当前实现中的常见错误响应：
 
@@ -536,12 +636,13 @@ Authorization: Bearer <token>
 
 客户端建议同时判断 HTTP 状态码和响应体中的 `code` 字段。
 
-## 13. 客户端对接建议
+## 14. 客户端对接建议
 
 - 消息上传和消息查询接口当前无需登录，可直接调用。
 - 登录成功后保存 `data.token`，仅在调用标记已读、删除消息等管理接口时放入 `Authorization` 请求头。
 - 调用管理接口时如收到 `401`、`no token` 或 `invalid token`，清理本地 token 并引导用户重新登录。
 - 一键已读和清空全部属于全局操作，客户端调用前建议弹窗二次确认。
 - 上传消息时尽量提供稳定的 `recordKey`，便于客户端侧追踪数据。
+- 不要由客户端打过滤标签；服务端会在上传时按分组和条件自动完成匹配。
 - 查询列表时建议固定传入 `page` 和 `pageSize`，避免依赖默认值。
 - `contentJson` 是原始消息对象，客户端展示正文时可优先读取 `contentJson.content`，其次读取 `contentJson.message`。

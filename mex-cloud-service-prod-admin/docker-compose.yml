@@ -13,6 +13,9 @@ services:
       - JWT_SECRET=secret
       - DEFAULT_ADMIN_USER=admin
       - DEFAULT_ADMIN_PASS=123456
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY:-}
+    env_file:
+      - .env
     depends_on:
       - db
 
